@@ -15,7 +15,7 @@ export async function createLumenScene(canvas, hooks = {}) {
   const noise=i=>{const v=Math.sin(i*127.1+17.4)*43758.5453;return v-Math.floor(v)};
   let scene,cam,renderer,rig,art,showcase,raycaster,plane;
   let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[];
-  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0;
+  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false;
   let panel='home',open=0,openVelocity=0,pressure=0,energy=0,observer;
   const hand={x:.7,y:.49,active:false,down:false,speed:0},soft={x:.7,y:.49,speed:0};
   const mousePoint=new THREE.Vector3(99,99,0),worldPoint=new THREE.Vector3(),testPoint=new THREE.Vector3();
@@ -230,7 +230,7 @@ export async function createLumenScene(canvas, hooks = {}) {
         const c=r.mids[j],s=state[j],u=j/len;
         const dx=c.x-mousePoint.x,dy=c.y-mousePoint.y,dz=(c.z-mousePoint.z)*.56;
         const d=Math.sqrt(dx*dx+dy*dy+dz*dz),inv=1/(d+.18);
-        const radius=2.15+Math.min(1,soft.speed*.14)+pressure*.56;
+        const radius=2.15+Math.min(1,soft.speed*.14)+pressure*.76;
         const force=hand.active?ease(1-d/radius):0;
         const repel=ease(1-d/(.95+pressure*.37));
         const factor=force*(repel*.62-(1-repel)*.17-pressure*.17);
@@ -241,7 +241,7 @@ export async function createLumenScene(canvas, hooks = {}) {
         const blend=Math.pow(Math.sin(Math.PI*u),.42);
         const tx=dx*inv*factor+Math.cos(angle)*drift*blend-dy*inv*soft.speed*force*.06+ripple*dx*inv*.12;
         const ty=dy*inv*factor+Math.sin(angle)*drift*blend+dx*inv*soft.speed*force*.06+ripple*dy*inv*.12;
-        const tz=(repel*.45+pressure*.28)*force+drift*.2+Math.sin(t*.34+u*5+r.i)*.015+ripple*.25;
+        const tz=(repel*.45+pressure*.43)*force+drift*.2+Math.sin(t*.34+u*5+r.i)*.015+ripple*.25;
         const f=Math.exp(-7.3*dt),k=20;
         s.vx=(s.vx+(tx-s.x)*k*dt)*f;
         s.vy=(s.vy+(ty-s.y)*k*dt)*f;
@@ -328,12 +328,13 @@ export async function createLumenScene(canvas, hooks = {}) {
     document.removeEventListener('visibilitychange',visibility);
     canvas.removeEventListener('webglcontextlost',contextLost);
     observer?.disconnect();
+    if(resizeOnWindow)window.removeEventListener('resize',resize);
     geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(tex=>tex.dispose());renderer?.dispose();
   }
   try{
     createWorld();resize();
     if('ResizeObserver' in window){observer=new ResizeObserver(resize);observer.observe(canvas.parentElement);}
-    else window.addEventListener('resize',resize,{passive:true});
+    else { window.addEventListener('resize',resize,{passive:true}); resizeOnWindow=true; }
     document.addEventListener('visibilitychange',visibility);
     canvas.addEventListener('webglcontextlost',contextLost,{passive:false});
     hooks.onReady?.();start();
