@@ -148,7 +148,7 @@ export default function App() {
       <canvas className={'lumen-canvas '+(renderStatus === 'ready'?'ready':'')} ref={canvasRef} aria-hidden="true" />
       <div className="floor-mist" aria-hidden="true" />
       {renderStatus !== 'ready' && (
-        <div className="fallback-sculpture" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/></div>
+        <div className="fallback-sculpture" aria-hidden="true">{Array.from({length:14},(_,i)=><i key={i}/>)}</div>
       )}
       <header className="lumen-header">
         <a className="wordmark" href="#home" onClick={e=>{e.preventDefault();changeMode('home')}}>GEN<span>5</span>ROM</a>
