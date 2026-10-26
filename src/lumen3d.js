@@ -36,13 +36,33 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
     const c=keepT(new THREE.CubeTexture(imgs));c.colorSpace=THREE.SRGBColorSpace;c.mapping=THREE.CubeReflectionMapping;c.needsUpdate=true;return c;
   }
+  // Art-directed spatial spline paths — the composition is NOT repeated torus geometry.
+  // Curated open ribbons have distinct cinematic sweeps, curls and opposing depths.
+  const ribbonBlueprints=[
+    [[-5.8,-2.8,-1.6],[-4.3,-2.7,-.4],[-2.2,-.8,1.1],[.5,.7,1.8],[2.8,-.2,.6],[5.2,-2,-1.3]],
+    [[-3.5,2.2,-1.8],[-2.7,3.7,-.7],[0,4.9,.3],[3.3,3.3,1.1],[4.7,.8,-.5],[2.8,-1.6,0]],
+    [[-.9,-2.5,1.7],[1.3,-2.7,1.8],[2.7,-.7,.7],[2,1.5,-.8],[.1,2.6,0],[-1.9,1.1,1.2],[-.8,-.9,2.0],[1.2,.1,2.2]],
+    [[2.0,4,-1],[.4,3.2,0],[-1,1.4,1.5],[-.3,-.7,2.4],[2.0,-1.8,1.4],[4.2,-.6,-.5],[5.4,2.2,-1.4]],
+    [[-5.4,-.2,2.2],[-3,1.3,1.5],[-.7,.1,0],[1.4,-1.7,.8],[3.1,.6,1.1],[5.5,2.5,1.8]],
+    [[-3.8,-3.5,-1],[-.8,-3.6,0],[1.1,-2.3,1],[2.9,.4,2],[1.9,2.9,0],[.1,3,-1],[-2,1.3,-.8]],
+    [[5.3,3,-2],[4.2,1,-.5],[1.9,-1.0,1.5],[-.4,-1.5,1.7],[-1.8,.7,1.1],[.2,2.4,-.5],[3.5,2.1,-1.4],[5.7,.5,-2]],
+    [[-5,-3.1,.1],[-2.8,-3.5,.7],[-1.2,-2.3,2.1],[1.1,-1.2,2.3],[2.2,-2.6,1.3],[4.2,-3.9,.0]],
+    [[-2.9,1.6,2.0],[-1.4,2.8,1.5],[.8,2.9,.1],[2.1,1.3,-1.5],[1.0,-.8,-2],[-1.7,-1.4,-.9],[-2.6,.3,.9],[-1.6,2,1.6]],
+    [[-4.5,3.5,-1.7],[-2.6,4.5,-.9],[.4,3.4,.8],[2.2,1.0,2],[.4,-1.7,1.3],[-2.1,-1.8,-.6],[-4.0,.7,-1.8]],
+    [[4.8,-3.4,-1.0],[4.0,-1.7,.6],[2.1,.5,1.4],[1.1,3,1.9],[2.7,4.4,.3],[5.3,3.4,-1.2]],
+    [[-5,1.9,-1],[-3.2,-.3,.3],[-1,-2.2,1.7],[1.6,-.5,2.6],[1.1,1.8,1.0],[-1.1,3.1,-.8],[-3.4,2.0,-1.3]]
+  ];
+  const spatialCurves=ribbonBlueprints.map(points=>new THREE.CatmullRomCurve3(
+    points.map(p=>new THREE.Vector3(p[0],p[1],p[2])),false,'catmullrom',.35
+  ));
   function curl(i,u){
-    const theta=i*2.39996+u*Math.PI*2*(1.07+(i%5)*.23)+noise(i+1)*.38;
-    const radius=(1.16+.16*(i%4)+1.03*Math.sin(Math.PI*u))*(.75+u*.64)*(i%4===0?1.33:i%3===0?1.16:1);
+    if(i<spatialCurves.length)return spatialCurves[i].getPoint(u);
+    const theta=i*2.39996+u*Math.PI*2*(1.3+(i%3)*.24)+noise(i+1)*.38;
+    const radius=(1.0+.18*(i%4)+1.15*Math.sin(Math.PI*u))*(.80+u*.58);
     return new THREE.Vector3(
-      Math.cos(theta)*radius+Math.sin(u*5.4+i)*.33,
-      Math.sin(theta)*radius*.77+Math.cos(u*7.7+i*.67)*.34,
-      Math.sin(theta*.83+u*5.7+i*.42)*(.8+.2*(i%4))+Math.cos(u*7.5+i)*.35
+      Math.cos(theta)*radius+Math.sin(u*5.2+i)*.48,
+      Math.sin(theta)*radius*.84+Math.cos(u*7.9+i*.66)*.45,
+      Math.sin(theta*.84+u*6+i*.41)*(1.2+.22*(i%3))+Math.cos(u*8+i)*.36
     );
   }
   function makeRibbon(i) {
@@ -83,8 +103,8 @@ export async function createLumenScene(canvas, hooks = {}) {
       clearcoat:1,clearcoatRoughness:.05,iridescence:.88,iridescenceIOR:1.33,
       iridescenceThicknessRange:[125,600],envMapIntensity:1.06,side:THREE.DoubleSide
     })):keepM(new THREE.MeshPhysicalMaterial({
-      color:[0xd2ccc6,0xe2dcd3,0xc1cbd8,0xdfd5d1,0xcbcad3][i%5],
-      metalness:.32,roughness:.17+(i%4)*.035,clearcoat:1,clearcoatRoughness:.11,
+      color:[0xb3bcc6,0xe2dcd3,0xc5d1dc,0xe9e1da,0xc2c9d2][i%5],
+      metalness:i%4===0?.48:.27,roughness:.15+(i%4)*.038,clearcoat:1,clearcoatRoughness:.09,
       iridescence:.84,iridescenceIOR:1.38,iridescenceThicknessRange:[135,660],
       envMapIntensity:1.06,side:THREE.DoubleSide
     }));
