@@ -14,6 +14,7 @@ const sections = ['WORK', 'ABOUT', 'CONTACT']
 export default function App() {
   const canvasRef = useRef(null)
   const engineRef = useRef(null)
+  const holdingRef = useRef(false)
   const pointRef = useRef({x: 0, y: 0, t: 0, downX: 0, downY: 0})
   const [mode, setMode] = useState('home')
   const [selected, setSelected] = useState(null)
@@ -103,12 +104,18 @@ export default function App() {
     if (e.target.closest('button,a,input,[role="dialog"]')) return
     pointRef.current.downX=e.clientX
     pointRef.current.downY=e.clientY
+    pointRef.current.t=0 // prevent stale pointer velocity from creating a snap
+    holdingRef.current=true
     setHolding(true)
     e.currentTarget.setPointerCapture?.(e.pointerId)
     feedPointer(e, true)
   }
-  function pointerMove(e) { if (e.pointerType === 'touch' && !holding) return; feedPointer(e, holding) }
+  function pointerMove(e) {
+    if (e.pointerType === 'touch' && !holdingRef.current) return
+    feedPointer(e, holdingRef.current)
+  }
   function pointerUp(e) {
+    holdingRef.current=false
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
     if (e.target.closest('button,a,input,[role="dialog"]')) { setHolding(false); engineRef.current?.release(); return }
     const click = Math.hypot(e.clientX-pointRef.current.downX,e.clientY-pointRef.current.downY) < 14
@@ -124,6 +131,7 @@ export default function App() {
     } else if (mode === 'home') engineRef.current?.ripple()
   }
   function release() {
+    holdingRef.current=false
     setHolding(false)
     engineRef.current?.release()
     engineRef.current?.pointerLeave()
@@ -188,7 +196,7 @@ export default function App() {
       <footer className="lumen-footer">
         <div className="interaction-meter">
           <span className="interaction-ring" aria-hidden="true"><i/></span>
-          <div className="footer-status"><strong>{holding?'HOLD TO SCULPT':stateLabel}</strong><span>{renderStatus==='loading'?'PREPARING THREE-DIMENSIONAL SPACE':renderStatus==='fallback'?'LITE PREVIEW · SCENE UNAVAILABLE':renderStatus==='ready'?'REAL-TIME 3D / PROXIMITY':'INTERACTIVE EXPERIMENT'}</span></div>
+          <div className="footer-status"><strong>{holding?'DRAG THE FABRIC':stateLabel}</strong><span>{renderStatus==='loading'?'PREPARING CLOTH SIMULATION':renderStatus==='fallback'?'FABRIC PREVIEW · WEBGL UNAVAILABLE':renderStatus==='ready'?'REAL-TIME 3D / ORGANIC CLOTH':'INTERACTIVE EXPERIMENT'}</span></div>
           <div className="meter-line"><span style={{width:energy+'%'}}/></div>
         </div>
         <div className="footer-middle"><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp} aria-controls="interaction-guide">HOW TO INTERACT <span>?</span></button></div>
