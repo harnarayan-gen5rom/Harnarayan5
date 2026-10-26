@@ -8,7 +8,7 @@ export async function createLumenScene(canvas, hooks = {}) {
   try { THREE = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js'); }
   catch(err) { console.warn('LUMEN FOLD Three.js load:',err); hooks.onFailure?.(); return unavailable; }
   if (hooks.isCancelled?.()) return unavailable;
-  const low = matchMedia('(pointer:coarse)').matches || (navigator.deviceMemory||8)<=4;
+  const low = matchMedia('(pointer:coarse)').matches || (navigator.deviceMemory||8)<=4 || (navigator.hardwareConcurrency||8)<=4;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const mix=(a,b,t)=>a+(b-a)*t, ease=x=>{x=clamp(x,0,1);return x*x*(3-2*x)};
   const damp=(a,b,k,dt)=>mix(a,b,1-Math.exp(-k*dt));
@@ -140,7 +140,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     renderer.setClearColor(0xf8f7f3,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.91;
-    renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.1:1.6));
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.0:1.6));
     scene=new THREE.Scene();scene.environment=envMap();
     cam=new THREE.PerspectiveCamera(43,1,.1,110);cam.position.set(0,0,14.8);cam.lookAt(0,0,0);
     scene.add(new THREE.AmbientLight(0xfdfcfe,.57));
