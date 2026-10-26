@@ -1,0 +1,57 @@
+name: Publish compiled LUMEN FOLD to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages-lumen-production
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build React/Vite website
+        run: npm run build
+      - name: Verify compiled HTML references production assets
+        run: |
+          test -f dist/index.html
+          test -d dist/assets
+          test -f dist/favicon.svg
+          if grep -q '/src/main.jsx' dist/index.html; then
+            echo 'ERROR: Vite did not transform development entry point'
+            exit 1
+          fi
+          grep -q 'assets/index-' dist/index.html || (echo 'ERROR: missing bundled asset reference' && exit 1)
+          touch dist/.nojekyll
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the compiled dist folder (NOT raw source)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Publish compiled site
+        id: deploy
+        uses: actions/deploy-pages@v4
