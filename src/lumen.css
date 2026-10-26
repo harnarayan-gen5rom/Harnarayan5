@@ -273,3 +273,65 @@ button:focus-visible,a:focus-visible{outline-color:#fff}
 @media(prefers-reduced-motion:reduce){
   .fallback-sculpture i{animation:none!important}
 }
+
+
+/* ==============================================================
+   FABRIC / 003 — satin white on deep graphite
+   Narrow tonal range, soft shadowing, brighter readable typography.
+   ============================================================== */
+:root{
+  --ivory:#151b1f;
+  --ink:#f8f9fa;
+  --muted:#b6c1c7;
+  --line:rgba(224,236,242,.19);
+  background:#151b1f;
+}
+body{background:#151b1f}
+.lumen-site{
+  --ivory:#151b1f;--ink:#f8f9fa;--muted:#b6c1c7;
+  background:
+    radial-gradient(ellipse 86% 76% at 65% 47%,#242e33 0%,#1b2328 42%,#13191d 100%);
+}
+.gallery-ambient{
+  background:
+    radial-gradient(ellipse 70% 58% at 75% 38%,rgba(201,222,230,.07),transparent 80%),
+    radial-gradient(ellipse 47% 71% at 22% 75%,rgba(103,132,149,.045),transparent 83%);
+}
+.floor-mist{
+  background:
+    linear-gradient(90deg,rgba(17,23,27,.72) 0%,rgba(19,25,29,.41) 13%,rgba(20,26,29,.10) 33%,transparent 51%),
+    linear-gradient(0deg,rgba(16,23,27,.66),transparent 11%,transparent 86%,rgba(16,23,27,.28));
+}
+.home-headline h1{
+  color:#fdfefe;
+  text-shadow:0 4px 22px rgba(0,0,0,.32);
+}
+.home-headline p{color:#d4e0e5}
+.concept-index,.section-kicker{color:#c2d2d9}
+.primary-navigation button{color:#cbd8dd}
+.primary-navigation button:hover,.primary-navigation button.active{color:#fff}
+.unfold-link,.return-link{border-color:rgba(222,239,244,.39)}
+.interaction-ring{border-color:rgba(222,239,244,.50)}
+.interaction-ring i{box-shadow:0 0 0 5px rgba(216,235,245,.10)}
+.footer-status strong{color:#f2f8fa}
+.footer-status span,.slide-count span{color:#a6bbc5}
+.meter-line span{background:#d4e5ec}
+.skill-tags span{border-color:rgba(215,234,241,.25)}
+.help-bubble{background:rgba(19,27,31,.96);border-color:rgba(202,225,236,.25)}
+/* Softer edges and paper-like diffuse variation for low-GPU fallback. */
+.fallback-sculpture i,.fallback-sculpture i:nth-child(n){
+  background:linear-gradient(180deg,#fefefe 0%,#f5f7f8 43%,#dce4e9 83%,#fbfcfd 100%);
+  box-shadow:0 10px 18px rgba(0,0,0,.14),inset 0 5px 15px rgba(255,255,255,.92),
+             inset 0 -6px 13px rgba(180,194,201,.15);
+}
+@media(max-width:820px){
+  .floor-mist{
+    background:linear-gradient(180deg,rgba(16,22,26,.81),rgba(16,22,26,.46) 28%,transparent 62%,rgba(16,22,26,.58));
+  }
+}
+@media(max-width:620px){
+  .floor-mist{
+    background:linear-gradient(180deg,rgba(16,22,26,.84),rgba(16,22,26,.50) 27%,transparent 63%,rgba(16,22,26,.67));
+  }
+  .home-headline h1{text-shadow:0 4px 20px rgba(0,0,0,.43)}
+}
