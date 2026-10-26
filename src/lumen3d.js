@@ -27,8 +27,8 @@ export async function createLumenScene(canvas, hooks = {}) {
     for(let i=0;i<6;i++){
       const c=document.createElement('canvas');c.width=c.height=256;
       const ctx=c.getContext('2d'),gradient=ctx.createLinearGradient(0,0,256,256);
-      gradient.addColorStop(0,i%2?'#b8c1d6':'#f4eee5');
-      gradient.addColorStop(.6,'#f9fbff');gradient.addColorStop(1,'#c6c1c9');
+      gradient.addColorStop(0,i%2?'#818da4':'#e7ded5');
+      gradient.addColorStop(.6,'#e7edf7');gradient.addColorStop(1,'#9fa8b8');
       ctx.fillStyle=gradient;ctx.fillRect(0,0,256,256);
       ctx.fillStyle='rgba(255,255,255,.95)';ctx.fillRect(39,0,28,256);
       ctx.fillStyle='rgba(255,255,255,.83)';ctx.fillRect(170,0,27,220);
@@ -38,7 +38,7 @@ export async function createLumenScene(canvas, hooks = {}) {
   }
   function curl(i,u){
     const theta=i*2.39996+u*Math.PI*2*(1.07+(i%5)*.23)+noise(i+1)*.38;
-    const radius=(1.14+.16*(i%4)+.95*Math.sin(Math.PI*u))*(.77+u*.54);
+    const radius=(1.16+.16*(i%4)+1.03*Math.sin(Math.PI*u))*(.75+u*.64)*(i%4===0?1.33:i%3===0?1.16:1);
     return new THREE.Vector3(
       Math.cos(theta)*radius+Math.sin(u*5.4+i)*.33,
       Math.sin(theta)*radius*.77+Math.cos(u*7.7+i*.67)*.34,
@@ -49,7 +49,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     const cells=(len+1)*(stepsAcross+1);
     const coordinates=new Float32Array(cells*3),faces=[];
     const mids=[],cross=[],motion=[],sizes=[];
-    const width=.35+(i%5)*.085;
+    const width=.40+(i%5)*.115;
     for(let j=0;j<=len;j++){
       const u=j/len,center=curl(i,u);
       const tangent=curl(i,clamp(u+.003,0,1)).sub(curl(i,clamp(u-.003,0,1))).normalize();
@@ -79,14 +79,14 @@ export async function createLumenScene(canvas, hooks = {}) {
     geometry.setIndex(faces);geometry.computeVertexNormals();
     const glass=!low && (i%5===1 || i%7===3);
     const surface=glass?keepM(new THREE.MeshPhysicalMaterial({
-      color:0xe9f1ff,roughness:.13,metalness:.02,transmission:.66,thickness:.82,ior:1.35,
+      color:0xd2ddeb,roughness:.14,metalness:.04,transmission:.57,thickness:1.2,ior:1.34,
       clearcoat:1,clearcoatRoughness:.05,iridescence:.88,iridescenceIOR:1.33,
-      iridescenceThicknessRange:[125,600],envMapIntensity:1.35,side:THREE.DoubleSide
+      iridescenceThicknessRange:[125,600],envMapIntensity:1.06,side:THREE.DoubleSide
     })):keepM(new THREE.MeshPhysicalMaterial({
-      color:[0xf3f1ee,0xfbf9f6,0xe5e9f0,0xf2eeec,0xe5e5ea][i%5],
-      metalness:.19,roughness:.16+(i%4)*.027,clearcoat:1,clearcoatRoughness:.09,
+      color:[0xd2ccc6,0xe2dcd3,0xc1cbd8,0xdfd5d1,0xcbcad3][i%5],
+      metalness:.32,roughness:.17+(i%4)*.035,clearcoat:1,clearcoatRoughness:.11,
       iridescence:.84,iridescenceIOR:1.38,iridescenceThicknessRange:[135,660],
-      envMapIntensity:1.48,side:THREE.DoubleSide
+      envMapIntensity:1.06,side:THREE.DoubleSide
     }));
     const mesh=new THREE.Mesh(geometry,surface);mesh.frustumCulled=false;art.add(mesh);
     const lines=new Float32Array(len*12),edge=keepG(new THREE.BufferGeometry());
@@ -139,15 +139,15 @@ export async function createLumenScene(canvas, hooks = {}) {
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:!low,powerPreference:low?'low-power':'high-performance'});
     renderer.setClearColor(0xf8f7f3,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
-    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.91;
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.1:1.6));
     scene=new THREE.Scene();scene.environment=envMap();
     cam=new THREE.PerspectiveCamera(43,1,.1,110);cam.position.set(0,0,14.8);cam.lookAt(0,0,0);
-    scene.add(new THREE.AmbientLight(0xfdfcfe,1.35));
-    scene.add(new THREE.HemisphereLight(0xffffff,0xc1c2d1,2.2));
-    const light1=new THREE.DirectionalLight(0xfff3e7,3.1);light1.position.set(-5,8,9);scene.add(light1);
-    const light2=new THREE.DirectionalLight(0xb8d7ff,2.1);light2.position.set(7,-2,7);scene.add(light2);
-    const warm=new THREE.PointLight(0xffe4c5,25,15,1.25);warm.position.set(1,-3,4);scene.add(warm);
+    scene.add(new THREE.AmbientLight(0xfdfcfe,.57));
+    scene.add(new THREE.HemisphereLight(0xffffff,0x8b8590,1.05));
+    const light1=new THREE.DirectionalLight(0xfff3e7,2.30);light1.position.set(-5,8,9);scene.add(light1);
+    const light2=new THREE.DirectionalLight(0xb8d7ff,1.25);light2.position.set(7,-2,7);scene.add(light2);
+    const warm=new THREE.PointLight(0xffe4c5,12,15,1.25);warm.position.set(1,-3,4);scene.add(warm);
     rig=new THREE.Group();scene.add(rig);art=new THREE.Group();rig.add(art);
     for(let i=0;i<total;i++)makeRibbon(i);
     const glass=keepM(new THREE.MeshPhysicalMaterial({
@@ -175,8 +175,8 @@ export async function createLumenScene(canvas, hooks = {}) {
     renderer.setSize(w,h,false);
     cam.aspect=w/h;cam.fov=w<680?47:w<930?44:43;cam.updateProjectionMatrix();
     if(w<680){rig.position.set(.3,-1.05,0);rig.scale.setScalar(.68);}
-    else if(w<930){rig.position.set(1.35,-.17,0);rig.scale.setScalar(.89);}
-    else{rig.position.set(2.5,-.04,0);rig.scale.setScalar(1.10);}
+    else if(w<930){rig.position.set(1.35,-.17,0);rig.scale.setScalar(1.04);}
+    else{rig.position.set(3.08,-.08,0);rig.scale.setScalar(1.65);}
     const coords=w<680?[[-1.26,1.35],[1.26,1.35],[-1.26,-1.35],[1.26,-1.35]]:
       [[-3.36,.11],[-1.12,-.12],[1.12,.13],[3.36,-.1]];
     frames.forEach((v,i)=>{v.x=coords[i][0];v.y=coords[i][1];});
