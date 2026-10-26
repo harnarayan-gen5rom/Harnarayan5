@@ -33,30 +33,51 @@ jobs:
             const browser=await chromium.launch({headless:true,executablePath:path,args:['--no-sandbox','--disable-webgl','--disable-software-rasterizer']});
             const errors=[];
             try{
-              for(const dims of [{width:1440,height:900},{width:390,height:844}]){
+              for(const dims of [{width:1440,height:900},{width:820,height:1180},{width:390,height:844},{width:320,height:690}]){
                 const p=await browser.newPage({viewport:dims,isMobile:dims.width<500,hasTouch:dims.width<500});
                 p.on('pageerror',error=>errors.push(dims.width+': '+error.message));
                 await p.goto('http://127.0.0.1:4188/',{waitUntil:'domcontentloaded'});
                 await p.locator('.home-headline h1').waitFor({state:'visible'});
                 const heading=await p.locator('.home-headline h1').innerText();
                 if(!heading.includes('LUMEN')||!heading.includes('FOLD'))throw Error('LUMEN FOLD title not visible');
-                await p.getByRole('button',{name:'WORK',exact:true}).click();
-                await p.locator('.project-list button').first().waitFor({state:'visible'});
-                await p.locator('.project-list button').first().click();
-                await p.locator('.project-modal').waitFor({state:'visible'});
-                await p.locator('.modal-heading button').click();
-                await p.locator('.project-modal').waitFor({state:'hidden'});
-                await p.getByRole('button',{name:'ABOUT',exact:true}).click();
-                await p.getByText("I'm Harnarayan", {exact:false}).waitFor({state:'visible'});
-                await p.getByRole('button',{name:'CONTACT',exact:true}).click();
-                await p.getByText('SEND AN INQUIRY',{exact:false}).waitFor({state:'visible'});
-                await p.locator('.wordmark').click();
+                // Actual site navigation and public portfolio content, including resume.
+                await p.locator('.primary-navigation a[href="#work"]').click();
+                await p.locator('#work .pf-project').first().waitFor({state:'visible'});
+                const projectCount=await p.locator('#work .pf-project').count();
+                if(projectCount<9)throw Error('Project catalog not rendered');
+                await p.locator('#work .pf-project').first().click();
+                await p.locator('.pf-modal [role="dialog"]').waitFor({state:'visible'});
+                await p.locator('.pf-modal-top button').click();
+                await p.locator('.pf-modal').waitFor({state:'hidden'});
+                await p.locator('#work .pf-filter-list button').filter({hasText:'Graphic design'}).click();
+                await p.locator('#work .pf-project').first().waitFor({state:'visible'});
+                await p.locator('#experience').scrollIntoViewIfNeeded();
+                await p.locator('.pf-job').first().waitFor({state:'visible'});
+                if(await p.locator('.pf-job').count()!==3)throw Error('Resume experience timeline missing');
+                await p.locator('#about').scrollIntoViewIfNeeded();
+                await p.getByText('Indira Gandhi National Open University', {exact:false}).waitFor({state:'visible'});
+                await p.locator('#skills').scrollIntoViewIfNeeded();
+                await p.getByText('After Effects', {exact:true}).first().waitFor({state:'visible'});
+                await p.locator('#contact').scrollIntoViewIfNeeded();
+                await p.locator('.pf-email').waitFor({state:'visible'});
+                await p.locator('.pf-email').evaluate(el=>{if(!el.href.startsWith('mailto:'))throw Error('Email link invalid')});
+                const viewport=await p.evaluate(()=>({
+                  innerWidth:window.innerWidth,
+                  scrollWidth:document.documentElement.scrollWidth,
+                  workCount:document.querySelectorAll('.pf-project').length,
+                  sections:['work','experience','about','skills','contact'].every(id=>!!document.getElementById(id)),
+                  resume:!!document.querySelector('a[href$="harnarayan-resume.pdf"]')
+                }));
+                console.log('PORTFOLIO RESPONSIVE CHECK',dims.width,JSON.stringify(viewport));
+                if(viewport.scrollWidth>viewport.innerWidth+3)throw Error('Horizontal overflow '+JSON.stringify(viewport));
+                if(!viewport.sections||!viewport.resume)throw Error('Sections or resume missing');
+                await p.locator('.pf-brand').click();
                 await p.locator('.home-headline h1').waitFor({state:'visible'});
                 await p.screenshot({path:'lumen-'+dims.width+'.png'});
                 await p.close();
               }
               if(errors.length)throw Error('Browser errors: '+errors.join('; '));
-              console.log('Desktop and mobile navigation, gallery, modal and fallback PASSED');
+              console.log('Desktop, tablet and mobile portfolio, filters, resume timeline, dialogs and overflow PASSED');
             }finally{await browser.close()}
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
@@ -68,6 +89,8 @@ jobs:
           path: |
             lumen-1440.png
             lumen-390.png
+            lumen-820.png
+            lumen-320.png
           if-no-files-found: ignore
   gpu-render-probe:
     runs-on: ubuntu-latest
