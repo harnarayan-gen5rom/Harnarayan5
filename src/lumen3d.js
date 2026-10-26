@@ -86,7 +86,7 @@ export async function createLumenScene(canvas, hooks = {}) {
         const k=(j*(stepsAcross+1)+w)*3;
         coordinates[k]=center.x+sideways.x*size*spread;
         coordinates[k+1]=center.y+sideways.y*size*spread;
-        coordinates[k+2]=center.z+sideways.z*size*spread;
+        coordinates[k+2]=center.z+sideways.z*size*spread+Math.sin((w/stepsAcross)*Math.PI)*.11;
       }
     }
     for(let j=0;j<len;j++)for(let w=0;w<stepsAcross;w++){
@@ -103,7 +103,7 @@ export async function createLumenScene(canvas, hooks = {}) {
       clearcoat:1,clearcoatRoughness:.05,iridescence:.88,iridescenceIOR:1.33,
       iridescenceThicknessRange:[125,600],envMapIntensity:1.06,side:THREE.DoubleSide
     })):keepM(new THREE.MeshPhysicalMaterial({
-      color:[0xb3bcc6,0xe2dcd3,0xc5d1dc,0xe9e1da,0xc2c9d2][i%5],
+      color:[0xaeb4c0,0xe0dad4,0xc3ceda,0xe8dfd7,0xbcc4cf][i%5],
       metalness:i%4===0?.48:.27,roughness:.15+(i%4)*.038,clearcoat:1,clearcoatRoughness:.09,
       iridescence:.84,iridescenceIOR:1.38,iridescenceThicknessRange:[135,660],
       envMapIntensity:1.06,side:THREE.DoubleSide
@@ -112,7 +112,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     const lines=new Float32Array(len*12),edge=keepG(new THREE.BufferGeometry());
     edge.setAttribute('position',new THREE.BufferAttribute(lines,3).setUsage(THREE.DynamicDrawUsage));
     const tracer=new THREE.LineSegments(edge,keepM(new THREE.LineBasicMaterial({
-      color:i%3===0?0xc5bcae:0xb4bdce,opacity:.42,transparent:true,depthWrite:false
+      color:i%3===0?0xa7a5a4:0x8595ad,opacity:.65,transparent:true,depthWrite:false
     })));tracer.frustumCulled=false;art.add(tracer);
     pieces.push({geometry,coordinates,rest,mids,cross,motion,sizes,width,lines,edge,i});
   }
@@ -196,7 +196,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     cam.aspect=w/h;cam.fov=w<680?47:w<930?44:43;cam.updateProjectionMatrix();
     if(w<680){rig.position.set(.3,-1.05,0);rig.scale.setScalar(.68);}
     else if(w<930){rig.position.set(1.35,-.17,0);rig.scale.setScalar(1.04);}
-    else{rig.position.set(3.08,-.08,0);rig.scale.setScalar(1.65);}
+    else{rig.position.set(4.15,-.12,0);rig.scale.setScalar(1.34);}
     const coords=w<680?[[-1.26,1.35],[1.26,1.35],[-1.26,-1.35],[1.26,-1.35]]:
       [[-3.36,.11],[-1.12,-.12],[1.12,.13],[3.36,-.1]];
     frames.forEach((v,i)=>{v.x=coords[i][0];v.y=coords[i][1];});
