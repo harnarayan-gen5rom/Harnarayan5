@@ -1,6 +1,6 @@
-/* GEN5ROM / LUMEN FOLD — full-bleed horizontal cloth installation.
-   9 individually tessellated white fabric strips spanning left to right,
-   elastic neighbor-coupled spring deformation, proximity, drag/touch and ripple. */
+/* LUMEN FOLD / FABRIC 003 — responsive full-bleed 3D cloth installation.
+   Curved fabric strips with neighbor-coupled damped spring physics, proximity
+   interaction, dragging, propagating waves and adaptive desktop/mobile rendering. */
 export async function createLumenScene(canvas, hooks = {}) {
   const unavailable = {setMode(){},updatePointer(){},pointer(){},pointerLeave(){},release(){},ripple(){},dispose(){},pickProject(){return -1},isNearAperture(){return false}};
   if (!canvas || hooks.reducedMotion) { hooks.onFailure?.(); return unavailable; }
@@ -13,14 +13,14 @@ export async function createLumenScene(canvas, hooks = {}) {
   const mix=(a,b,t)=>a+(b-a)*t, ease=x=>{x=clamp(x,0,1);return x*x*(3-2*x)};
   const damp=(a,b,k,dt)=>mix(a,b,1-Math.exp(-k*dt));
   const noise=i=>{const v=Math.sin(i*127.1+17.4)*43758.5453;return v-Math.floor(v)};
-  let scene,cam,renderer,rig,art,showcase,raycaster,plane;
+  let scene,cam,renderer,rig,art,showcase,raycaster,plane,gestureLight;
   let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[];
   let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false;
   let panel='home',open=0,openVelocity=0,pressure=0,energy=0,observer;
   const hand={x:.7,y:.49,active:false,down:false,speed:0,vx:0,vy:0},soft={x:.7,y:.49,speed:0,vx:0,vy:0};
   const mousePoint=new THREE.Vector3(99,99,0),worldPoint=new THREE.Vector3(),testPoint=new THREE.Vector3();
   const ndc=new THREE.Vector2();
-  const len=low?76:110,stepsAcross=low?6:10,total=low?7:9;
+  const len=low?76:116,stepsAcross=low?6:12,total=low?7:9;
   const keepG=g=>{geometries.push(g);return g},keepM=m=>{materials.push(m);return m},keepT=q=>{textures.push(q);return q};
   function envMap(){
     const imgs=[];
@@ -36,29 +36,19 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
     const c=keepT(new THREE.CubeTexture(imgs));c.colorSpace=THREE.SRGBColorSpace;c.mapping=THREE.CubeReflectionMapping;c.needsUpdate=true;return c;
   }
-  // Opaque white cel-shaded paper, deliberately NOT iridescent glass.
-  // Nearest-filtered four-tone lighting gives a restrained anime illustration feel.
-  function whiteCelGradient(){
-    const shades=[
-      [193,199,204,255],
-      [218,222,226,255],
-      [240,241,242,255],
-      [255,255,255,255]
-    ];
-    const bytes=new Uint8Array(shades.flat());
-    const tex=keepT(new THREE.DataTexture(bytes,shades.length,1,THREE.RGBAFormat));
-    tex.magFilter=THREE.NearestFilter;
-    tex.minFilter=THREE.NearestFilter;
-    tex.generateMipmaps=false;
-    tex.colorSpace=THREE.SRGBColorSpace;
-    tex.needsUpdate=true;
-    return tex;
-  }
-  let paperGradient=null;
-  const paperMaterial=(i=0)=>keepM(new THREE.MeshToonMaterial({
-    color:i%6===0?0xfbfdfd:0xffffff,
-    gradientMap:paperGradient,
-    side:THREE.DoubleSide
+  // Matte porcelain-fabric: soft physically lit folds, never glass or metallic.
+  // Very small cool/warm variation gives each strip spatial separation.
+  const fabricColors=[0xfafafa,0xf3f6f7,0xfcfaf7,0xf5f8fa,0xf9fafb];
+  const paperMaterial=i=>keepM(new THREE.MeshPhysicalMaterial({
+    color:fabricColors[i%fabricColors.length],
+    side:THREE.DoubleSide,
+    metalness:0,
+    roughness:.86,
+    clearcoat:.035,
+    clearcoatRoughness:.89,
+    sheen:.25,
+    sheenColor:new THREE.Color(0xebf5fa),
+    sheenRoughness:.92
   }));
   // White cloth bands stretch beyond both viewport edges.
   // Curated crossing/sweeping arcs, no looping knots or closed torus-like shapes.
@@ -83,14 +73,14 @@ export async function createLumenScene(canvas, hooks = {}) {
     const cells=(len+1)*(stepsAcross+1);
     const coordinates=new Float32Array(cells*3),faces=[];
     const mids=[],cross=[],motion=[],sizes=[];
-    const width=.36+(i%3)*.085;
+    const width=.32+(i%3)*.078;
     for(let j=0;j<=len;j++){
       const u=j/len,center=curl(i,u);
       const tangent=curl(i,clamp(u+.003,0,1)).sub(curl(i,clamp(u-.003,0,1))).normalize();
       const sideways=new THREE.Vector3(0,0,1).cross(tangent).normalize();
       if(sideways.lengthSq()<.0001)sideways.set(0,1,0).cross(tangent).normalize();
       const normal=new THREE.Vector3().crossVectors(tangent,sideways).normalize();
-      const twist=Math.sin(u*7.5+i*.93)*.21+Math.sin(u*15.3+i*1.37)*.10;
+      const twist=Math.sin(u*6.7+i*.93)*.24+Math.sin(u*13.6+i*1.37)*.13;
       sideways.multiplyScalar(Math.cos(twist)).addScaledVector(normal,Math.sin(twist)).normalize();
       mids.push(center);cross.push(sideways);motion.push({x:0,y:0,z:0,vx:0,vy:0,vz:0});
       const size=width*(.85+.15*Math.sin(u*Math.PI*2.3+i*.49));
@@ -100,7 +90,9 @@ export async function createLumenScene(canvas, hooks = {}) {
         const k=(j*(stepsAcross+1)+w)*3;
         coordinates[k]=center.x+sideways.x*size*spread;
         coordinates[k+1]=center.y+sideways.y*size*spread;
-        coordinates[k+2]=center.z+sideways.z*size*spread+Math.sin((w/stepsAcross)*Math.PI)*.11;
+        coordinates[k+2]=center.z+sideways.z*size*spread
+          +Math.sin((w/stepsAcross)*Math.PI)*(.17+.025*Math.sin(u*11+i))
+          +Math.sin(u*21+i*1.3+spread*2.6)*.046*Math.sin((w/stepsAcross)*Math.PI);
       }
     }
     for(let j=0;j<len;j++)for(let w=0;w<stepsAcross;w++){
@@ -116,9 +108,10 @@ export async function createLumenScene(canvas, hooks = {}) {
     const lines=new Float32Array(len*12),edge=keepG(new THREE.BufferGeometry());
     edge.setAttribute('position',new THREE.BufferAttribute(lines,3).setUsage(THREE.DynamicDrawUsage));
     const tracer=new THREE.LineSegments(edge,keepM(new THREE.LineBasicMaterial({
-      color:0xb8bec5,opacity:.34,transparent:true,depthWrite:false
+      color:0xd1dce1,opacity:.17,transparent:true,depthWrite:false
     })));tracer.frustumCulled=false;art.add(tracer);
-    pieces.push({geometry,coordinates,rest,mids,cross,motion,sizes,width,lines,edge,i});
+    pieces.push({geometry,coordinates,rest,mids,cross,motion,sizes,width,lines,edge,i,
+      snapshots:new Float32Array((len+1)*3)});
   }
   function floorGradient(){
     const c=document.createElement('canvas');c.width=c.height=256;
@@ -161,22 +154,22 @@ export async function createLumenScene(canvas, hooks = {}) {
   }
   function createWorld(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:!low,powerPreference:low?'low-power':'high-performance'});
-    renderer.setClearColor(0xffffff,0);
+    renderer.setClearColor(0x11191d,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
-    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.02;
-    renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.0:1.6));
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.16;
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.0:1.65));
     scene=new THREE.Scene();
-    paperGradient=whiteCelGradient();
-    // Pure white lighting: material definition comes from cel bands, not rainbow reflections.
     cam=new THREE.PerspectiveCamera(43,1,.1,110);cam.position.set(0,0,17.2);cam.lookAt(0,0,0);
-    scene.add(new THREE.AmbientLight(0xffffff,.75));
-    scene.add(new THREE.HemisphereLight(0xffffff,0xbac0c7,.73));
-    const light1=new THREE.DirectionalLight(0xffffff,2.15);
-    light1.position.set(-5,8,9);scene.add(light1);
-    const light2=new THREE.DirectionalLight(0xffffff,.68);
-    light2.position.set(7,-2,7);scene.add(light2);
-    const warm=new THREE.PointLight(0xffffff,3.2,15,1.45);
-    warm.position.set(1,-3,4);scene.add(warm);
+    scene.add(new THREE.AmbientLight(0xffffff,.63));
+    scene.add(new THREE.HemisphereLight(0xfafcff,0x8d9ca5,.83));
+    const key=new THREE.DirectionalLight(0xfffcf7,2.38);
+    key.position.set(-5,8,10);scene.add(key);
+    const fill=new THREE.DirectionalLight(0xdcebf4,1.0);
+    fill.position.set(7,-2,7);scene.add(fill);
+    const rim=new THREE.DirectionalLight(0xf5fbff,.67);
+    rim.position.set(3,3,-6);scene.add(rim);
+    gestureLight=new THREE.PointLight(0xdceef7,0,10,1.3);
+    gestureLight.position.set(0,0,3);scene.add(gestureLight);
     rig=new THREE.Group();scene.add(rig);art=new THREE.Group();rig.add(art);
     for(let i=0;i<total;i++)makeRibbon(i);
     // Minimal editorial installation: the fabric itself is the entire environment.
@@ -203,16 +196,16 @@ export async function createLumenScene(canvas, hooks = {}) {
   }
   function animate(now){
     frame=0;if(!playing||disposed||document.hidden)return;
-    const raw=last?clamp((now-last)/1000,.001,.055):.016,dt=Math.min(raw,.035);
+    const raw=last?clamp((now-last)/1000,.001,.060):.016,dt=Math.min(raw,.032);
     last=now;t+=dt;frameNo++;
     if(raw>.044)slowFrames++;else slowFrames=Math.max(0,slowFrames-1);
     if(slowFrames>18&&!qualityLow){qualityLow=true;renderer.setPixelRatio(Math.min(devicePixelRatio||1,1));renderer.setSize(Math.max(1,canvas.parentElement.clientWidth),Math.max(1,canvas.parentElement.clientHeight),false);}
-    soft.x=damp(soft.x,hand.active?hand.x:.70,5.4,dt);
-    soft.y=damp(soft.y,hand.active?hand.y:.49,5.4,dt);
+    soft.x=damp(soft.x,hand.active?hand.x:.70,9.0,dt);
+    soft.y=damp(soft.y,hand.active?hand.y:.49,9.0,dt);
     soft.speed=damp(soft.speed,hand.active?hand.speed:0,5,dt);
-    soft.vx=damp(soft.vx,hand.active?hand.vx:0,8.5,dt);
-    soft.vy=damp(soft.vy,hand.active?hand.vy:0,8.5,dt);
-    pressure=damp(pressure,hand.down?1:0,hand.down?1.8:3.0,dt);
+    soft.vx=damp(soft.vx,hand.active?hand.vx:0,7.2,dt);
+    soft.vy=damp(soft.vy,hand.active?hand.vy:0,7.2,dt);
+    pressure=damp(pressure,hand.down?1:0,hand.down?6.0:3.6,dt);
     const wish=panel==='work'?1:panel==='about'?.34:panel==='contact'?.58:0;
     openVelocity+=(wish-open)*18*dt;openVelocity*=Math.exp(-7.6*dt);
     open=clamp(open+openVelocity*dt,0,1);
@@ -220,55 +213,72 @@ export async function createLumenScene(canvas, hooks = {}) {
     const originDist=Math.hypot(mousePoint.x,mousePoint.y);
     energy=damp(energy,hand.active?clamp(1-originDist/5,0,1)+pressure*.25:0,4.3,dt);
     waves=waves.filter(w=>t-w.start<2.2);
+    const cursorX=mousePoint.x,cursorY=mousePoint.y;
+    // Two-pass spring update: freeze previous particle positions before solving.
+    // This avoids directional bias/jitter from updating neighbors in-place.
     for(const r of pieces){
-      const angle=(r.i+1)*2.399,drift=(.70+(r.i%4)*.10)*open;
-      const state=r.motion;
+      const state=r.motion, priorStates=r.snapshots;
       for(let j=0;j<=len;j++){
-        const c=r.mids[j],s=state[j],u=j/len;
-        const dx=c.x-mousePoint.x,dy=c.y-mousePoint.y,dz=(c.z-mousePoint.z)*.56;
-        const d=Math.sqrt(dx*dx+dy*dy+dz*dz),inv=1/(d+.18);
-        // Distance falloff + cursor sweep, with anchored fabric endpoints.
-        const radius=1.95+Math.min(.65,soft.speed*.14)+pressure*.93;
-        const force=hand.active?ease(1-d/radius):0;
-        const pin=Math.pow(Math.max(0,Math.sin(Math.PI*u)),.52);
-        const repel=ease(1-d/(.98+pressure*.55));
-        const grab=force*(.27+pressure*.75)*pin;
+        const n=j*3,p=state[j];priorStates[n]=p.x;priorStates[n+1]=p.y;priorStates[n+2]=p.z;
+      }
+      const drift=(.63+(r.i%4)*.08)*open;
+      const angle=(r.i+1)*2.399;
+      for(let j=0;j<=len;j++){
+        const c=r.mids[j],s=state[j],u=j/len,n=j*3;
+        const dx=c.x-cursorX,dy=c.y-cursorY,dz=(c.z-mousePoint.z)*.48;
+        const dist=Math.sqrt(dx*dx+dy*dy+dz*dz),inv=1/(dist+.20);
+        const anchor=Math.pow(Math.max(0,Math.sin(Math.PI*u)),.62);
+        // Gaussian-like falloff reacts BEFORE contact; direct manipulation when pressed.
+        const reach=2.85+pressure*.66+Math.min(.55,soft.speed*.12);
+        const nearest=Math.exp(-Math.pow(dist/reach,2)*2.1);
+        const proximity=hand.active?nearest*anchor:0;
+        const grabbed=proximity*(.44+pressure*.82);
         const ripple=waves.reduce((v,w)=>{
-          const dist=Math.hypot(c.x-w.x,c.y-w.y),age=t-w.start;
-          return v+Math.sin(dist*3.9-age*10.0)
-            *Math.exp(-Math.pow((dist-age*2.45)/1.45,2))
-            *(1-age/2.2)*w.pow;
+          const radius=Math.hypot(c.x-w.x,c.y-w.y),age=t-w.start;
+          return v+Math.sin(radius*3.9-age*10.0)
+            *Math.exp(-Math.pow((radius-age*2.6)/1.30,2))
+            *Math.max(0,1-age/2.2)*w.pow;
         },0);
-        // Proximity moves the cloth out of plane; drag sweeps it sideways.
-        const tx=(dx*inv*grab*.55 + soft.vx*force*.52
-          + Math.cos(angle)*drift)*pin + ripple*dx*inv*.14*pin;
-        const ty=(dy*inv*grab*.48 - soft.vy*force*.52
-          + Math.sin(angle)*drift)*pin + ripple*dy*inv*.17*pin;
-        const tz=(grab*(.70+repel*.45)+pressure*force*.39
-          + Math.sin(t*.45+u*6.8+r.i)*.022+drift*.14+ripple*.32)*pin;
-        // Neighbor-coupled springs transmit momentum along the fabric.
-        const prev=state[Math.max(0,j-1)],next=state[Math.min(len,j+1)];
-        const tensionX=(prev.x+next.x-2*s.x)*9.2;
-        const tensionY=(prev.y+next.y-2*s.y)*9.2;
-        const tensionZ=(prev.z+next.z-2*s.z)*11.4;
-        const damping=Math.exp(-5.4*dt),stiffness=29;
-        s.vx=(s.vx+((tx-s.x)*stiffness+tensionX)*dt)*damping;
-        s.vy=(s.vy+((ty-s.y)*stiffness+tensionY)*dt)*damping;
-        s.vz=(s.vz+((tz-s.z)*stiffness+tensionZ)*dt)*damping;
-        s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;
+        const tx=(dx*inv*.34*grabbed
+          +soft.vx*proximity*(.40+pressure*.30)
+          +Math.cos(angle)*drift)*anchor+ripple*dx*inv*.11*anchor;
+        const ty=(dy*inv*.42*grabbed
+          -soft.vy*proximity*(.40+pressure*.30)
+          +Math.sin(angle)*drift)*anchor+ripple*dy*inv*.14*anchor;
+        const tz=(grabbed*(.76+pressure*.26)+soft.speed*.085*proximity
+          +Math.sin(t*.48+u*9+r.i)*.023+drift*.14+ripple*.24)*anchor;
+        const left=Math.max(0,j-1)*3,right=Math.min(len,j+1)*3;
+        const tens=18.0,spring=23.5,drag=Math.exp(-4.7*dt);
+        const accelX=(tx-priorStates[n])*spring
+          +(priorStates[left]+priorStates[right]-2*priorStates[n])*tens;
+        const accelY=(ty-priorStates[n+1])*spring
+          +(priorStates[left+1]+priorStates[right+1]-2*priorStates[n+1])*tens;
+        const accelZ=(tz-priorStates[n+2])*spring
+          +(priorStates[left+2]+priorStates[right+2]-2*priorStates[n+2])*tens*1.25;
+        s.vx=(s.vx+accelX*dt)*drag;
+        s.vy=(s.vy+accelY*dt)*drag;
+        s.vz=(s.vz+accelZ*dt)*drag;
+        s.x=priorStates[n]+s.vx*dt;
+        s.y=priorStates[n+1]+s.vy*dt;
+        s.z=priorStates[n+2]+s.vz*dt;
       }
       const pos=r.coordinates,rest=r.rest;
       for(let j=0;j<=len;j++){
-        const s=state[j];
+        const s=state[j],u=j/len;
+        const fold=Math.sin(u*15.5+t*.56+r.i*.63)*(.035+pressure*.012);
         for(let w=0;w<=stepsAcross;w++){
-          const n=(j*(stepsAcross+1)+w)*3,v=(w/stepsAcross*2-1)*(pressure*.072+open*.04)*r.sizes[j];
+          const across=w/stepsAcross*2-1;
+          const n=(j*(stepsAcross+1)+w)*3;
           const normal=r.cross[j];
-          pos[n]=rest[n]+s.x+normal.x*v;
-          pos[n+1]=rest[n+1]+s.y+normal.y*v;
-          pos[n+2]=rest[n+2]+s.z+normal.z*v;
+          const bend=across*(pressure*.052+open*.027)*r.sizes[j];
+          const curve=fold*(1-across*across)*Math.sin(Math.PI*u);
+          pos[n]=rest[n]+s.x+normal.x*bend;
+          pos[n+1]=rest[n+1]+s.y+normal.y*bend;
+          pos[n+2]=rest[n+2]+s.z+normal.z*bend+curve;
         }
         if(j<len){
-          const k=j*12,l=j*(stepsAcross+1)*3,rr=(j*(stepsAcross+1)+stepsAcross)*3,nl=(j+1)*(stepsAcross+1)*3,nr=((j+1)*(stepsAcross+1)+stepsAcross)*3;
+          const k=j*12,l=j*(stepsAcross+1)*3,rr=(j*(stepsAcross+1)+stepsAcross)*3,
+            nl=(j+1)*(stepsAcross+1)*3,nr=((j+1)*(stepsAcross+1)+stepsAcross)*3;
           const e=r.lines;
           e[k]=pos[l];e[k+1]=pos[l+1];e[k+2]=pos[l+2];
           e[k+3]=pos[nl];e[k+4]=pos[nl+1];e[k+5]=pos[nl+2];
@@ -280,6 +290,9 @@ export async function createLumenScene(canvas, hooks = {}) {
       if(frameNo%2===0)r.geometry.computeVertexNormals();
       r.edge.attributes.position.needsUpdate=true;
     }
+    // Controlled interaction light softly reveals the deformed cloth surface.
+    gestureLight.position.set(cursorX,cursorY,3.2);
+    gestureLight.intensity=damp(gestureLight.intensity,hand.active?4.0+energy*8.0:0,5.5,dt);
     for(const d of drops){
       d.m.position.set(d.origin.x+Math.sin(t*.28+d.i)*.12,d.origin.y+Math.cos(t*.29+d.i)*.12,d.origin.z+Math.sin(t*.35+d.i)*.10);
     }
