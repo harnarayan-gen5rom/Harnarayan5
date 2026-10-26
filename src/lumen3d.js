@@ -13,14 +13,14 @@ export async function createLumenScene(canvas, hooks = {}) {
   const mix=(a,b,t)=>a+(b-a)*t, ease=x=>{x=clamp(x,0,1);return x*x*(3-2*x)};
   const damp=(a,b,k,dt)=>mix(a,b,1-Math.exp(-k*dt));
   const noise=i=>{const v=Math.sin(i*127.1+17.4)*43758.5453;return v-Math.floor(v)};
-  let scene,cam,renderer,rig,art,showcase,raycaster,plane,gestureLight;
-  let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[];
+  let scene,cam,renderer,rig,art,showcase,raycaster,plane,gestureLight,glowGroup,glowMaterial;
+  let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[],gapMeshes=[];
   let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false;
   let panel='home',open=0,openVelocity=0,pressure=0,energy=0,observer;
   const hand={x:.7,y:.49,active:false,down:false,speed:0,vx:0,vy:0},soft={x:.7,y:.49,speed:0,vx:0,vy:0};
   const mousePoint=new THREE.Vector3(99,99,0),worldPoint=new THREE.Vector3(),testPoint=new THREE.Vector3();
   const ndc=new THREE.Vector2();
-  const len=low?76:116,stepsAcross=low?6:12,total=low?7:9;
+  const len=low?76:116,stepsAcross=low?6:12,total=low?10:14;
   const keepG=g=>{geometries.push(g);return g},keepM=m=>{materials.push(m);return m},keepT=q=>{textures.push(q);return q};
   function envMap(){
     const imgs=[];
@@ -36,24 +36,45 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
     const c=keepT(new THREE.CubeTexture(imgs));c.colorSpace=THREE.SRGBColorSpace;c.mapping=THREE.CubeReflectionMapping;c.needsUpdate=true;return c;
   }
-  // Matte porcelain-fabric: soft physically lit folds, never glass or metallic.
-  // Very small cool/warm variation gives each strip spatial separation.
-  const fabricColors=[0xfafafa,0xf3f6f7,0xfcfaf7,0xf5f8fa,0xf9fafb];
+  // Procedural woven texture: tiny interlaced warp/weft micro-threads.
+  function weaveTexture(){
+    const canvas=document.createElement('canvas');
+    canvas.width=canvas.height=256;
+    const ctx=canvas.getContext('2d'),image=ctx.createImageData(256,256);
+    for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+      const warp=Math.cos(x*Math.PI/3.3),weft=Math.cos(y*Math.PI/3.3);
+      const cross=((Math.floor(x/3)%2)===(Math.floor(y/3)%2)?1:-1)*4;
+      const v=Math.max(0,Math.min(255,Math.round(128+warp*14+weft*13+warp*weft*7+Math.sin((x+y)*.41)*2+cross)));
+      const k=(y*256+x)*4;image.data[k]=image.data[k+1]=image.data[k+2]=v;image.data[k+3]=255;
+    }
+    ctx.putImageData(image,0,0);
+    const map=keepT(new THREE.CanvasTexture(canvas));
+    map.wrapS=map.wrapT=THREE.RepeatWrapping;
+    map.repeat.set(20,2.0);
+    map.anisotropy=low?1:4;
+    map.colorSpace=THREE.NoColorSpace;
+    map.needsUpdate=true;
+    return map;
+  }
+  const weave=weaveTexture();
+  const fabricColors=[0xfafafb,0xf2f5f7,0xfdfcfb,0xf5f8fa,0xf8f9fb];
   const paperMaterial=i=>keepM(new THREE.MeshPhysicalMaterial({
     color:fabricColors[i%fabricColors.length],
     side:THREE.DoubleSide,
     metalness:0,
-    roughness:.86,
-    clearcoat:.035,
-    clearcoatRoughness:.89,
-    sheen:.25,
-    sheenColor:new THREE.Color(0xebf5fa),
-    sheenRoughness:.92
+    roughness:.89,
+    clearcoat:.015,
+    clearcoatRoughness:.95,
+    sheen:.30,
+    sheenColor:new THREE.Color(0xe8f1f5),
+    sheenRoughness:.92,
+    bumpMap:weave,
+    bumpScale:low?.009:.018
   }));
   // White cloth bands stretch beyond both viewport edges.
   // Curated crossing/sweeping arcs, no looping knots or closed torus-like shapes.
   const ribbonBlueprints=Array.from({length:total},(_,i)=>{
-    const base=((total-1)*.5-i)*(low?1.58:1.29);
+    const base=((total-1)*.5-i)*(low?1.04:.86);
     const xx=[-15,-12.2,-9.1,-6.1,-3.0,-.25,2.5,5.6,8.6,11.8,15];
     return xx.map((x,j)=>{
       const wave=Math.sin(x*.34+i*.79)*(.31+.11*(i%3));
@@ -71,9 +92,9 @@ export async function createLumenScene(canvas, hooks = {}) {
   function curl(i,u){return spatialCurves[i].getPoint(u);}
   function makeRibbon(i) {
     const cells=(len+1)*(stepsAcross+1);
-    const coordinates=new Float32Array(cells*3),faces=[];
+    const coordinates=new Float32Array(cells*3),uvs=new Float32Array(cells*2),faces=[];
     const mids=[],cross=[],motion=[],sizes=[];
-    const width=.32+(i%3)*.078;
+    const width=.24+(i%4)*.053;
     for(let j=0;j<=len;j++){
       const u=j/len,center=curl(i,u);
       const tangent=curl(i,clamp(u+.003,0,1)).sub(curl(i,clamp(u-.003,0,1))).normalize();
@@ -88,6 +109,8 @@ export async function createLumenScene(canvas, hooks = {}) {
       for(let w=0;w<=stepsAcross;w++){
         const spread=w/stepsAcross*2-1;
         const k=(j*(stepsAcross+1)+w)*3;
+        const uv=(j*(stepsAcross+1)+w)*2;
+        uvs[uv]=u;uvs[uv+1]=w/stepsAcross;
         coordinates[k]=center.x+sideways.x*size*spread;
         coordinates[k+1]=center.y+sideways.y*size*spread;
         coordinates[k+2]=center.z+sideways.z*size*spread
@@ -102,6 +125,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     const rest=coordinates.slice();
     const geometry=keepG(new THREE.BufferGeometry());
     geometry.setAttribute('position',new THREE.BufferAttribute(coordinates,3).setUsage(THREE.DynamicDrawUsage));
+    geometry.setAttribute('uv',new THREE.BufferAttribute(uvs,2));
     geometry.setIndex(faces);geometry.computeVertexNormals();
     const surface=paperMaterial(i);
     const mesh=new THREE.Mesh(geometry,surface);mesh.frustumCulled=false;art.add(mesh);
@@ -112,6 +136,99 @@ export async function createLumenScene(canvas, hooks = {}) {
     })));tracer.frustumCulled=false;art.add(tracer);
     pieces.push({geometry,coordinates,rest,mids,cross,motion,sizes,width,lines,edge,i,
       snapshots:new Float32Array((len+1)*3)});
+  }
+  // Light-leak strips live behind the opaque fabric so actual Z depth
+  // hides glow wherever ribbons overlap the scene.
+  function buildGapGlow(){
+    glowGroup=new THREE.Group();art.add(glowGroup);
+    const uniforms={
+      uTime:{value:0},
+      uTouch:{value:new THREE.Vector2(-99,-99)},
+      uStrength:{value:0},
+      uHue:{value:new THREE.Color(0xc5e8f5)}
+    };
+    glowMaterial=keepM(new THREE.ShaderMaterial({
+      uniforms,transparent:true,depthTest:true,depthWrite:false,
+      blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+      vertexShader:[
+        'varying vec2 vUv;',
+        'varying vec3 vPosition;',
+        'void main(){',
+        'vUv=uv;',
+        'vPosition=position;',
+        'gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);',
+        '}'
+      ].join('\n'),
+      fragmentShader:[
+        'uniform float uTime;',
+        'uniform vec2 uTouch;',
+        'uniform float uStrength;',
+        'uniform vec3 uHue;',
+        'varying vec2 vUv;',
+        'varying vec3 vPosition;',
+        'void main(){',
+        'float distFromMiddle=abs(vUv.y*2.0-1.0);',
+        'float core=pow(max(0.0,1.0-distFromMiddle),2.4);',
+        'float halo=pow(max(0.0,1.0-distFromMiddle),.72);',
+        'float ends=smoothstep(0.0,.08,vUv.x)*(1.0-smoothstep(.92,1.0,vUv.x));',
+        'float near=1.0-smoothstep(0.0,3.5,distance(vPosition.xy,uTouch));',
+        'near*=uStrength;',
+        'float shimmer=.90+.10*sin(uTime*.62+vUv.x*10.0);',
+        'float alpha=(.09*halo+.17*core+near*(.14*halo+.22*core))*ends*shimmer;',
+        'gl_FragColor=vec4(uHue*(.7+.4*near),alpha);',
+        '}'
+      ].join('\n')
+    }));
+    for(let i=0;i<total-1;i++){
+      const positions=new Float32Array((len+1)*3*3);
+      const uvs=new Float32Array((len+1)*3*2),faces=[];
+      for(let j=0;j<=len;j++){
+        const u=j/len,a=pieces[i].mids[j],b=pieces[i+1].mids[j];
+        for(let k=0;k<3;k++){
+          const n=(j*3+k)*3,q=(j*3+k)*2;
+          positions[n]=(a.x+b.x)*.5;
+          positions[n+1]=(a.y+b.y)*.5+(k-1)*.45;
+          positions[n+2]=-2.72;
+          uvs[q]=u;uvs[q+1]=k*.5;
+        }
+        if(j<len)for(let k=0;k<2;k++){
+          const n=j*3+k,m=n+3;
+          faces.push(n,m,n+1,m,m+1,n+1);
+        }
+      }
+      const geo=keepG(new THREE.BufferGeometry());
+      geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('uv',new THREE.BufferAttribute(uvs,2));
+      geo.setIndex(faces);
+      const mesh=new THREE.Mesh(geo,glowMaterial);
+      mesh.frustumCulled=false;glowGroup.add(mesh);
+      gapMeshes.push({geo,positions,i});
+    }
+  }
+  function moveGapGlow(dt){
+    for(const gap of gapMeshes){
+      const a=pieces[gap.i],b=pieces[gap.i+1],pos=gap.positions;
+      for(let j=0;j<=len;j++){
+        const ca=a.mids[j],cb=b.mids[j],ma=a.motion[j],mb=b.motion[j];
+        const u=j/len,roll=Math.sin(u*12.4+gap.i*.75+t*.36)*.065;
+        const y=(ca.y+ma.y+cb.y+mb.y)*.5;
+        const x=(ca.x+ma.x+cb.x+mb.x)*.5;
+        for(let k=0;k<3;k++){
+          const n=(j*3+k)*3;
+          pos[n]=x;
+          pos[n+1]=y+(k-1)*(.38+roll);
+          pos[n+2]=-2.65+(ma.z+mb.z)*.13;
+        }
+      }
+      gap.geo.attributes.position.needsUpdate=true;
+    }
+    glowMaterial.uniforms.uTime.value=t;
+    glowMaterial.uniforms.uTouch.value.set(mousePoint.x,mousePoint.y);
+    glowMaterial.uniforms.uStrength.value=damp(
+      glowMaterial.uniforms.uStrength.value,
+      hand.active?Math.min(1,energy*.90+pressure*.42):0,
+      5.8,dt
+    );
   }
   function floorGradient(){
     const c=document.createElement('canvas');c.width=c.height=256;
@@ -172,6 +289,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     gestureLight.position.set(0,0,3);scene.add(gestureLight);
     rig=new THREE.Group();scene.add(rig);art=new THREE.Group();rig.add(art);
     for(let i=0;i<total;i++)makeRibbon(i);
+    buildGapGlow();
     // Minimal editorial installation: the fabric itself is the entire environment.
     // No floating balls, torus decorations or floor slab.
     buildGallery();
@@ -229,7 +347,7 @@ export async function createLumenScene(canvas, hooks = {}) {
         const dist=Math.sqrt(dx*dx+dy*dy+dz*dz),inv=1/(dist+.20);
         const anchor=Math.pow(Math.max(0,Math.sin(Math.PI*u)),.62);
         // Gaussian-like falloff reacts BEFORE contact; direct manipulation when pressed.
-        const reach=2.85+pressure*.66+Math.min(.55,soft.speed*.12);
+        const reach=3.10+pressure*.67+Math.min(.58,soft.speed*.12);
         const nearest=Math.exp(-Math.pow(dist/reach,2)*2.1);
         const proximity=hand.active?nearest*anchor:0;
         const grabbed=proximity*(.44+pressure*.82);
@@ -248,7 +366,7 @@ export async function createLumenScene(canvas, hooks = {}) {
         const tz=(grabbed*(.76+pressure*.26)+soft.speed*.085*proximity
           +Math.sin(t*.48+u*9+r.i)*.023+drift*.14+ripple*.24)*anchor;
         const left=Math.max(0,j-1)*3,right=Math.min(len,j+1)*3;
-        const tens=18.0,spring=23.5,drag=Math.exp(-4.7*dt);
+        const tens=17.2,spring=21.8,drag=Math.exp(-5.1*dt);
         const accelX=(tx-priorStates[n])*spring
           +(priorStates[left]+priorStates[right]-2*priorStates[n])*tens;
         const accelY=(ty-priorStates[n+1])*spring
@@ -290,6 +408,8 @@ export async function createLumenScene(canvas, hooks = {}) {
       if(frameNo%2===0)r.geometry.computeVertexNormals();
       r.edge.attributes.position.needsUpdate=true;
     }
+    // Real depth-masked light leaks follow the deforming fabric centerlines.
+    moveGapGlow(dt);
     // Controlled interaction light softly reveals the deformed cloth surface.
     gestureLight.position.set(cursorX,cursorY,3.2);
     gestureLight.intensity=damp(gestureLight.intensity,hand.active?4.0+energy*8.0:0,5.5,dt);
