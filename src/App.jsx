@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createLumenScene } from './lumen3d.js'
 import './lumen.css'
+import PortfolioContent from './PortfolioContent.jsx'
 
 const projects = [
   { name: 'Motion Study 01', type: 'Motion Design', id: 'yDnmJa0fTsw', url: 'https://youtu.be/yDnmJa0fTsw' },
@@ -138,7 +139,9 @@ export default function App() {
   }
 
   return (
+    <>
     <main
+      id="home"
       className={'lumen-site view-'+mode+(holding?' sculpting':'')}
       onPointerDown={pointerDown} onPointerMove={pointerMove}
       onPointerUp={pointerUp} onPointerCancel={release} onPointerLeave={release}
@@ -153,15 +156,19 @@ export default function App() {
       <header className="lumen-header">
         <a className="wordmark" href="#home" onClick={e=>{e.preventDefault();changeMode('home')}}>GEN<span>5</span>ROM</a>
         <nav className="primary-navigation" aria-label="Main">
-          {sections.map(s => <button key={s} className={mode === s.toLowerCase() ? 'active' : ''} onClick={()=>changeMode(s.toLowerCase())}>{s}</button>)}
+          {sections.map(s => <a key={s} href={'#'+s.toLowerCase()}>{s}</a>)}
         </nav>
       </header>
 
       <div className={'home-headline '+(mode==='home'?'visible':'')} aria-hidden={mode !== 'home'}>
-        <div className="concept-index">AN INTERACTIVE ARTWORK <span>— 001</span></div>
+        <div className="concept-index">HARNARAYAN / MOTION & VIDEO <span>— INTERACTIVE STUDY</span></div>
         <h1>LUMEN<br/>FOLD<span className="title-stop">.</span></h1>
         <p>SCULPT THE INVISIBLE.</p>
-        <button className="unfold-link" onClick={()=>changeMode('work')} tabIndex={mode==='home'?0:-1}>ENTER THE SCULPTURE <span aria-hidden="true">↗</span></button>
+        <div className="lumen-hero-role">VIDEO EDITOR <span>·</span> MOTION GRAPHICS DESIGNER</div>
+        <div className="lumen-hero-actions">
+          <a className="unfold-link" href="#work" tabIndex={mode==='home'?0:-1}>EXPLORE MY WORK <span aria-hidden="true">↗</span></a>
+          <button className="lumen-unfold-secondary" onClick={()=>changeMode('work')} tabIndex={mode==='home'?0:-1}>3D GALLERY <span aria-hidden="true">↗</span></button>
+        </div>
       </div>
 
       <section className={'lumen-info '+(mode==='work'?'info-visible':'')} aria-label="Selected work" aria-hidden={mode !== 'work'}>
@@ -200,7 +207,7 @@ export default function App() {
           <div className="meter-line"><span style={{width:energy+'%'}}/></div>
         </div>
         <div className="footer-middle"><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp} aria-controls="interaction-guide">HOW TO INTERACT <span>?</span></button></div>
-        <div className="slide-count">{mode==='home'?'01':mode==='work'?'02':'03'} <span>/ 03</span></div>
+        <div className="slide-count">LUMEN <span>/ GEN5ROM</span></div>
       </footer>
 
       {showHelp && <div className="help-bubble" id="interaction-guide" role="note"><button aria-label="Close guide" onClick={()=>setShowHelp(false)}>×</button><strong>TOUCH THE INVISIBLE.</strong><p>Move over the flowing white cloth to bend it. On phones, press and drag to pull the fabric; release to watch the waves settle. Open WORK to explore projects.</p></div>}
@@ -217,5 +224,7 @@ export default function App() {
       </div>}
       {reduced&&<span className="screen-reader-only">Reduced motion mode is enabled. Navigation and project links remain available.</span>}
     </main>
+    <PortfolioContent/>
+    </>
   )
 }
