@@ -1,0 +1,71 @@
+name: Lumen Fold — Build & Browser QA
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate real 3D module syntax
+        run: node --check src/lumen3d.js
+      - name: Build Vite production bundle
+        run: npm run build
+      - name: Install browser harness
+        run: npm install --no-save --no-package-lock playwright-core@1.56.1
+      - name: Desktop/mobile interaction smoke test
+        run: |
+          node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4188 > /tmp/lumen-vite.log 2>&1 &
+          sleep 2
+          node <<'NODE'
+          const { chromium } = require('playwright-core');
+          const fs = require('fs');
+          (async()=>{
+            const path=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium'].find(p=>fs.existsSync(p));
+            if(!path)throw Error('Chromium unavailable');
+            const browser=await chromium.launch({headless:true,executablePath:path,args:['--no-sandbox','--disable-webgl','--disable-software-rasterizer']});
+            const errors=[];
+            try{
+              for(const dims of [{width:1440,height:900},{width:390,height:844}]){
+                const p=await browser.newPage({viewport:dims,isMobile:dims.width<500,hasTouch:dims.width<500});
+                p.on('pageerror',error=>errors.push(dims.width+': '+error.message));
+                await p.goto('http://127.0.0.1:4188/',{waitUntil:'domcontentloaded'});
+                await p.locator('.home-headline h1').waitFor({state:'visible'});
+                const heading=await p.locator('.home-headline h1').innerText();
+                if(!heading.includes('LUMEN')||!heading.includes('FOLD'))throw Error('LUMEN FOLD title not visible');
+                await p.getByRole('button',{name:'WORK',exact:true}).click();
+                await p.locator('.project-list button').first().waitFor({state:'visible'});
+                await p.locator('.project-list button').first().click();
+                await p.locator('.project-modal').waitFor({state:'visible'});
+                await p.locator('.modal-heading button').click();
+                await p.locator('.project-modal').waitFor({state:'hidden'});
+                await p.getByRole('button',{name:'ABOUT',exact:true}).click();
+                await p.getByText("I'm Harnarayan", {exact:false}).waitFor({state:'visible'});
+                await p.getByRole('button',{name:'CONTACT',exact:true}).click();
+                await p.getByText('SEND AN INQUIRY',{exact:false}).waitFor({state:'visible'});
+                await p.locator('.wordmark').click();
+                await p.locator('.home-headline h1').waitFor({state:'visible'});
+                await p.screenshot({path:'lumen-'+dims.width+'.png'});
+                await p.close();
+              }
+              if(errors.length)throw Error('Browser errors: '+errors.join('; '));
+              console.log('Desktop and mobile navigation, gallery, modal and fallback PASSED');
+            }finally{await browser.close()}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Capture visual previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumen-fold-desktop-mobile
+          path: |
+            lumen-1440.png
+            lumen-390.png
+          if-no-files-found: ignore
