@@ -140,7 +140,7 @@ export default function App() {
       <canvas className={'lumen-canvas '+(renderStatus === 'ready'?'ready':'')} ref={canvasRef} aria-hidden="true" />
       <div className="floor-mist" aria-hidden="true" />
       {renderStatus !== 'ready' && (
-        <div className="fallback-sculpture" aria-hidden="true"><i/><i/><i/><i/><i/><b/></div>
+        <div className="fallback-sculpture" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/></div>
       )}
       <header className="lumen-header">
         <a className="wordmark" href="#home" onClick={e=>{e.preventDefault();changeMode('home')}}>GEN<span>5</span>ROM</a>
@@ -195,7 +195,7 @@ export default function App() {
         <div className="slide-count">{mode==='home'?'01':mode==='work'?'02':'03'} <span>/ 03</span></div>
       </footer>
 
-      {showHelp && <div className="help-bubble" id="interaction-guide" role="note"><button aria-label="Close guide" onClick={()=>setShowHelp(false)}>×</button><strong>TOUCH THE INVISIBLE.</strong><p>Move to bend the ribbons. Drag or hold to sculpt. Tap the opening to unfold into the gallery. Use WORK, ABOUT, CONTACT to navigate.</p></div>}
+      {showHelp && <div className="help-bubble" id="interaction-guide" role="note"><button aria-label="Close guide" onClick={()=>setShowHelp(false)}>×</button><strong>TOUCH THE INVISIBLE.</strong><p>Move over the flowing white cloth to bend it. On phones, press and drag to pull the fabric; release to watch the waves settle. Open WORK to explore projects.</p></div>}
 
       {renderStatus==='loading'&&<div className="load-marker" aria-live="polite"><span className="load-orbit"/>INITIALIZING LIGHT...</div>}
       {selected !== null && <div className="project-modal" role="presentation">
