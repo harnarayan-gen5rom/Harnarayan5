@@ -15,7 +15,7 @@ export async function createLumenScene(canvas, hooks = {}) {
   const noise=i=>{const v=Math.sin(i*127.1+17.4)*43758.5453;return v-Math.floor(v)};
   let scene,cam,renderer,rig,art,showcase,raycaster,plane,gestureLight,glowGroup,glowMaterial;
   let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[],gapMeshes=[];
-  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false;
+  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false,onScreen=true,screenObserver;
   let panel='home',open=0,openVelocity=0,pressure=0,energy=0,observer;
   const hand={x:.7,y:.49,active:false,down:false,speed:0,vx:0,vy:0},soft={x:.7,y:.49,speed:0,vx:0,vy:0};
   const mousePoint=new THREE.Vector3(99,99,0),worldPoint=new THREE.Vector3(),testPoint=new THREE.Vector3();
@@ -313,7 +313,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     rig.updateMatrixWorld(true);mousePoint.copy(worldPoint);rig.worldToLocal(mousePoint);
   }
   function animate(now){
-    frame=0;if(!playing||disposed||document.hidden)return;
+    frame=0;if(!playing||disposed||document.hidden||!onScreen)return;
     const raw=last?clamp((now-last)/1000,.001,.060):.016,dt=Math.min(raw,.032);
     last=now;t+=dt;frameNo++;
     if(raw>.044)slowFrames++;else slowFrames=Math.max(0,slowFrames-1);
@@ -441,7 +441,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
     frame=requestAnimationFrame(animate);
   }
-  function start(){if(playing&&!disposed&&!frame&&!document.hidden){last=0;frame=requestAnimationFrame(animate);}}
+  function start(){if(playing&&!disposed&&!frame&&!document.hidden&&onScreen){last=0;frame=requestAnimationFrame(animate);}}
   function updatePointer(x,y,speed,pressed){
     hand.vx=clamp((x-hand.x)*28,-2.4,2.4);
     hand.vy=clamp((y-hand.y)*28,-2.4,2.4);
@@ -472,6 +472,7 @@ export async function createLumenScene(canvas, hooks = {}) {
     document.removeEventListener('visibilitychange',visibility);
     canvas.removeEventListener('webglcontextlost',contextLost);
     observer?.disconnect();
+    screenObserver?.disconnect();
     if(resizeOnWindow)window.removeEventListener('resize',resize);
     geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(tex=>tex.dispose());renderer?.dispose();
   }
@@ -481,6 +482,15 @@ export async function createLumenScene(canvas, hooks = {}) {
     else { window.addEventListener('resize',resize,{passive:true}); resizeOnWindow=true; }
     document.addEventListener('visibilitychange',visibility);
     canvas.addEventListener('webglcontextlost',contextLost,{passive:false});
+    // Preserve fluid scrolling on phones by suspending GPU work below the hero.
+    if('IntersectionObserver' in window){
+      screenObserver=new IntersectionObserver(entries=>{
+        onScreen=entries.some(entry=>entry.isIntersecting);
+        if(onScreen)start();
+        else if(frame){cancelAnimationFrame(frame);frame=0;last=0;}
+      },{rootMargin:'80px 0px',threshold:0});
+      screenObserver.observe(canvas.parentElement);
+    }
     hooks.onReady?.();start();
     return {setMode,pointer:updatePointer,pointerLeave,release,ripple,isNearAperture,pickProject,dispose};
   }catch(error){
