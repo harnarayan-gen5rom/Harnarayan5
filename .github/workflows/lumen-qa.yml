@@ -108,8 +108,13 @@ jobs:
               console.log('BROWSER ERRORS',JSON.stringify(errors.slice(-12)));
               if(report.canvasReady){
                 await page.mouse.move(930,390);
-                await page.waitForTimeout(500);
-                await page.screenshot({path:'lumen-real-webgl.png',timeout:18000});
+                await page.waitForTimeout(350);
+                // Freeze renderer before readback; SwiftShader cannot reliably capture at full animated FPS.
+                await page.evaluate(()=>{
+                  Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});
+                  document.dispatchEvent(new Event('visibilitychange'));
+                });
+                await page.screenshot({path:'lumen-real-webgl.png',timeout:30000});
               }
               if(errors.some(e=>e.includes('Uncaught')))throw Error(errors.join('\n'));
             }finally{await browser.close()}
