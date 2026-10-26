@@ -36,6 +36,30 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
     const c=keepT(new THREE.CubeTexture(imgs));c.colorSpace=THREE.SRGBColorSpace;c.mapping=THREE.CubeReflectionMapping;c.needsUpdate=true;return c;
   }
+  // Opaque white cel-shaded paper, deliberately NOT iridescent glass.
+  // Nearest-filtered four-tone lighting gives a restrained anime illustration feel.
+  function whiteCelGradient(){
+    const shades=[
+      [193,199,204,255],
+      [218,222,226,255],
+      [240,241,242,255],
+      [255,255,255,255]
+    ];
+    const bytes=new Uint8Array(shades.flat());
+    const tex=keepT(new THREE.DataTexture(bytes,shades.length,1,THREE.RGBAFormat));
+    tex.magFilter=THREE.NearestFilter;
+    tex.minFilter=THREE.NearestFilter;
+    tex.generateMipmaps=false;
+    tex.colorSpace=THREE.SRGBColorSpace;
+    tex.needsUpdate=true;
+    return tex;
+  }
+  let paperGradient=null;
+  const paperMaterial=(i=0)=>keepM(new THREE.MeshToonMaterial({
+    color:i%6===0?0xfbfdfd:0xffffff,
+    gradientMap:paperGradient,
+    side:THREE.DoubleSide
+  }));
   // Art-directed spatial spline paths — the composition is NOT repeated torus geometry.
   // Curated open ribbons have distinct cinematic sweeps, curls and opposing depths.
   const ribbonBlueprints=[
@@ -97,22 +121,12 @@ export async function createLumenScene(canvas, hooks = {}) {
     const geometry=keepG(new THREE.BufferGeometry());
     geometry.setAttribute('position',new THREE.BufferAttribute(coordinates,3).setUsage(THREE.DynamicDrawUsage));
     geometry.setIndex(faces);geometry.computeVertexNormals();
-    const glass=!low && (i%5===1 || i%7===3);
-    const surface=glass?keepM(new THREE.MeshPhysicalMaterial({
-      color:0xd2ddeb,roughness:.14,metalness:.04,transmission:.57,thickness:1.2,ior:1.34,
-      clearcoat:1,clearcoatRoughness:.05,iridescence:.88,iridescenceIOR:1.33,
-      iridescenceThicknessRange:[125,600],envMapIntensity:1.06,side:THREE.DoubleSide
-    })):keepM(new THREE.MeshPhysicalMaterial({
-      color:[0xaeb4c0,0xe0dad4,0xc3ceda,0xe8dfd7,0xbcc4cf][i%5],
-      metalness:i%4===0?.48:.27,roughness:.15+(i%4)*.038,clearcoat:1,clearcoatRoughness:.09,
-      iridescence:.84,iridescenceIOR:1.38,iridescenceThicknessRange:[135,660],
-      envMapIntensity:1.06,side:THREE.DoubleSide
-    }));
+    const surface=paperMaterial(i);
     const mesh=new THREE.Mesh(geometry,surface);mesh.frustumCulled=false;art.add(mesh);
     const lines=new Float32Array(len*12),edge=keepG(new THREE.BufferGeometry());
     edge.setAttribute('position',new THREE.BufferAttribute(lines,3).setUsage(THREE.DynamicDrawUsage));
     const tracer=new THREE.LineSegments(edge,keepM(new THREE.LineBasicMaterial({
-      color:i%3===0?0xa7a5a4:0x8595ad,opacity:.65,transparent:true,depthWrite:false
+      color:0xb8bec5,opacity:.34,transparent:true,depthWrite:false
     })));tracer.frustumCulled=false;art.add(tracer);
     pieces.push({geometry,coordinates,rest,mids,cross,motion,sizes,width,lines,edge,i});
   }
@@ -142,7 +156,7 @@ export async function createLumenScene(canvas, hooks = {}) {
   function buildGallery(){
     showcase=new THREE.Group();showcase.visible=false;rig.add(showcase);
     const locs=[[-3.36,.11],[-1.12,-.12],[1.12,.13],[3.36,-.1]];
-    const slab=keepM(new THREE.MeshPhysicalMaterial({color:0xeef1f5,metalness:.25,roughness:.22,clearcoat:1}));
+    const slab=keepM(new THREE.MeshStandardMaterial({color:0xffffff,metalness:0,roughness:.8}));
     for(let i=0;i<4;i++){
       const root=new THREE.Group();
       const bg=new THREE.Mesh(keepG(new THREE.BoxGeometry(1.82,2.37,.14)),slab);
@@ -157,22 +171,26 @@ export async function createLumenScene(canvas, hooks = {}) {
   }
   function createWorld(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:!low,powerPreference:low?'low-power':'high-performance'});
-    renderer.setClearColor(0xf8f7f3,0);
+    renderer.setClearColor(0xffffff,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
-    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.91;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.02;
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.0:1.6));
-    scene=new THREE.Scene();scene.environment=envMap();
+    scene=new THREE.Scene();
+    paperGradient=whiteCelGradient();
+    // Pure white lighting: material definition comes from cel bands, not rainbow reflections.
     cam=new THREE.PerspectiveCamera(43,1,.1,110);cam.position.set(0,0,14.8);cam.lookAt(0,0,0);
-    scene.add(new THREE.AmbientLight(0xfdfcfe,.57));
-    scene.add(new THREE.HemisphereLight(0xffffff,0x8b8590,1.05));
-    const light1=new THREE.DirectionalLight(0xfff3e7,2.30);light1.position.set(-5,8,9);scene.add(light1);
-    const light2=new THREE.DirectionalLight(0xb8d7ff,1.25);light2.position.set(7,-2,7);scene.add(light2);
-    const warm=new THREE.PointLight(0xffe4c5,12,15,1.25);warm.position.set(1,-3,4);scene.add(warm);
+    scene.add(new THREE.AmbientLight(0xffffff,.75));
+    scene.add(new THREE.HemisphereLight(0xffffff,0xbac0c7,.73));
+    const light1=new THREE.DirectionalLight(0xffffff,2.15);
+    light1.position.set(-5,8,9);scene.add(light1);
+    const light2=new THREE.DirectionalLight(0xffffff,.68);
+    light2.position.set(7,-2,7);scene.add(light2);
+    const warm=new THREE.PointLight(0xffffff,3.2,15,1.45);
+    warm.position.set(1,-3,4);scene.add(warm);
     rig=new THREE.Group();scene.add(rig);art=new THREE.Group();rig.add(art);
     for(let i=0;i<total;i++)makeRibbon(i);
-    const glass=keepM(new THREE.MeshPhysicalMaterial({
-      color:0xe9f0fa,roughness:.09,metalness:.04,transmission:low?0:.78,thickness:1.3,
-      transparent:low,opacity:low?.72:1,ior:1.39,clearcoat:1,iridescence:.74,envMapIntensity:1.4
+    const glass=keepM(new THREE.MeshToonMaterial({
+      color:0xffffff,gradientMap:paperGradient,side:THREE.DoubleSide
     }));
     const dropGeo=keepG(new THREE.IcosahedronGeometry(1,2));
     for(let i=0;i<(low?4:8);i++){
@@ -195,8 +213,8 @@ export async function createLumenScene(canvas, hooks = {}) {
     renderer.setSize(w,h,false);
     cam.aspect=w/h;cam.fov=w<680?47:w<930?44:43;cam.updateProjectionMatrix();
     if(w<680){rig.position.set(.3,-1.05,0);rig.scale.setScalar(.68);}
-    else if(w<930){rig.position.set(1.35,-.17,0);rig.scale.setScalar(1.04);}
-    else{rig.position.set(4.15,-.12,0);rig.scale.setScalar(1.34);}
+    else if(w<930){rig.position.set(1.45,-.17,0);rig.scale.setScalar(.96);}
+    else{rig.position.set(3.45,-.12,0);rig.scale.setScalar(1.10);}
     const coords=w<680?[[-1.26,1.35],[1.26,1.35],[-1.26,-1.35],[1.26,-1.35]]:
       [[-3.36,.11],[-1.12,-.12],[1.12,.13],[3.36,-.1]];
     frames.forEach((v,i)=>{v.x=coords[i][0];v.y=coords[i][1];});
