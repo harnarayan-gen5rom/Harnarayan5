@@ -55,3 +55,40 @@ jobs:
       - name: Publish compiled site
         id: deploy
         uses: actions/deploy-pages@v4
+
+  verify-live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check published HTML and executable production asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          site='https://harnarayan-gen5rom.github.io/Harnarayan5'
+          valid=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            curl -fsSL --max-time 12 -H 'Cache-Control: no-cache' "$site/?verification=$GITHUB_SHA-$attempt" -o /tmp/lumen-live.html || true
+            if grep -q 'assets/index-.*\.js' /tmp/lumen-live.html 2>/dev/null && ! grep -q '/src/main.jsx' /tmp/lumen-live.html; then
+              valid=1
+              break
+            fi
+            echo "Waiting for compiled site on GitHub Pages ($attempt/12)..."
+            sleep 8
+          done
+          if [[ "$valid" != 1 ]]; then
+            echo 'ERROR: GitHub Pages is still serving raw JSX entry or an invalid response'
+            sed -n '1,35p' /tmp/lumen-live.html || true
+            exit 1
+          fi
+          js=$(grep -oE 'src="(\./)?assets/index-[^"]+\.js"' /tmp/lumen-live.html | head -1 | cut -d'"' -f2)
+          css=$(grep -oE 'href="(\./)?assets/index-[^"]+\.css"' /tmp/lumen-live.html | head -1 | cut -d'"' -f2)
+          echo "Bundled JS: $js"
+          echo "Bundled CSS: $css"
+          test -n "$js" && test -n "$css"
+          jsPath="${js#./}"
+          cssPath="${css#./}"
+          curl -fsSL --max-time 30 "$site/$jsPath" -o /tmp/lumen-live.js
+          curl -fsSL --max-time 30 "$site/$cssPath" -o /tmp/lumen-live.css
+          test $(wc -c < /tmp/lumen-live.js) -gt 1000
+          test $(wc -c < /tmp/lumen-live.css) -gt 1000
+          echo "GitHub Pages is serving the compiled React app and its CSS/JS assets."
