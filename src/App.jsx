@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { createLumenScene } from './lumen3d.js'
 import './lumen.css'
 import PortfolioContent from './PortfolioContent.jsx'
+import './lumenResponsive.css'
 
 const projects = [
   { name: 'Motion Study 01', type: 'Motion Design', id: 'yDnmJa0fTsw', url: 'https://youtu.be/yDnmJa0fTsw' },
