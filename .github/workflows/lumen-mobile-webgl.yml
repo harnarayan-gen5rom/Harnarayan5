@@ -1,0 +1,67 @@
+name: LUMEN FOLD High-DPI Mobile WebGL Probe
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gpu-phone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm install --no-save --no-package-lock playwright-core@1.56.1
+      - name: Render true high-DPI phone WebGL and measure canvas density
+        run: |
+          node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4188 > /tmp/lumen-mobile.log 2>&1 &
+          sleep 2
+          node <<'NODE'
+          const {chromium}=require('playwright-core'),fs=require('fs');
+          (async()=>{
+            const exe=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium'].find(fs.existsSync);
+            if(!exe)throw Error('Browser unavailable');
+            const browser=await chromium.launch({
+              executablePath:exe,headless:true,
+              args:['--no-sandbox','--enable-webgl','--enable-unsafe-swiftshader','--use-angle=swiftshader','--disable-gpu-sandbox']
+            });
+            try{
+              for(const device of [
+                {width:1440,height:900,dpr:1.5,mobile:false},
+                {width:390,height:844,dpr:2,mobile:true}
+              ]){
+                const page=await browser.newPage({
+                  viewport:{width:device.width,height:device.height},
+                  deviceScaleFactor:device.dpr,hasTouch:device.mobile,isMobile:device.mobile
+                });
+                const errors=[];
+                page.on('pageerror',e=>errors.push(e.message));
+                await page.goto('http://127.0.0.1:4188/',{waitUntil:'domcontentloaded'});
+                await page.locator('.lumen-canvas.ready').waitFor({timeout:35000});
+                await page.waitForTimeout(500);
+                const report=await page.evaluate(()=>{
+                  const canvas=document.querySelector('canvas.lumen-canvas'),r=canvas.getBoundingClientRect();
+                  return {ready:canvas.classList.contains('ready'),bufferWidth:canvas.width,bufferHeight:canvas.height,cssWidth:r.width,cssHeight:r.height,density:+(canvas.width/r.width).toFixed(2)};
+                });
+                console.log('LUMEN REAL WEBGL DPR',device.width,JSON.stringify(report),'ERRORS',JSON.stringify(errors.slice(-4)));
+                if(!report.ready)throw Error('WebGL failed to initialize');
+                if(device.mobile&&report.density<1.25)throw Error('Phone quality too blurry: '+report.density+' DPR');
+                await page.evaluate(()=>{
+                  Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});
+                  document.dispatchEvent(new Event('visibilitychange'));
+                });
+                await page.screenshot({path:'lumen-webgl-'+device.width+'.png',timeout:30000});
+                if(errors.some(s=>/ReferenceError|TypeError|Uncaught/.test(s)))throw Error(errors.join('\n'));
+                await page.close();
+              }
+            }finally{await browser.close();}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lumen-high-dpi-rendered-scenes
+          path: lumen-webgl-*.png
+          if-no-files-found: ignore
