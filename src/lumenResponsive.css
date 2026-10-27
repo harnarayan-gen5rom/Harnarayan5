@@ -194,3 +194,12 @@ html,body,#root{max-width:100%;min-width:0;overflow-x:clip}
 @media(prefers-reduced-motion:reduce){
   .home-headline,.lumen-info{transition:none}
 }
+
+/* Compact interactive gallery for midsize notebook heights: keep fourth row
+   and RETURN action well above the independently positioned bottom meter. */
+@media(min-width:761px) and (max-width:1150px){
+  .lumen-info h2{font-size:clamp(2.25rem,4.4vw,3.55rem);margin:9px 0}
+  .lumen-info>p{margin-bottom:12px;line-height:1.5}
+  .lumen-info .project-list button{min-height:50px}
+  .lumen-info .return-link{margin-top:11px;padding:9px 0}
+}
