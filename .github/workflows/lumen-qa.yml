@@ -33,13 +33,51 @@ jobs:
             const browser=await chromium.launch({headless:true,executablePath:path,args:['--no-sandbox','--disable-webgl','--disable-software-rasterizer']});
             const errors=[];
             try{
-              for(const dims of [{width:1440,height:900},{width:820,height:1180},{width:390,height:844},{width:320,height:690}]){
+              for(const dims of [{width:1440,height:900},{width:1024,height:768},{width:820,height:1180},{width:560,height:760},{width:430,height:932},{width:390,height:844},{width:360,height:740},{width:320,height:720},{width:320,height:600}]){
                 const p=await browser.newPage({viewport:dims,isMobile:dims.width<500,hasTouch:dims.width<500});
                 p.on('pageerror',error=>errors.push(dims.width+': '+error.message));
                 await p.goto('http://127.0.0.1:4188/',{waitUntil:'domcontentloaded'});
                 await p.locator('.home-headline h1').waitFor({state:'visible'});
                 const heading=await p.locator('.home-headline h1').innerText();
                 if(!heading.includes('LUMEN')||!heading.includes('FOLD'))throw Error('LUMEN FOLD title not visible');
+                const layout=async phase=>p.evaluate((phase)=>{
+                  const selectors=phase==='hero'?
+                    ['.lumen-header','.home-headline','.lumen-footer']:
+                    ['.lumen-header','.lumen-info.info-visible','.lumen-footer'];
+                  const rects={};
+                  for(const sel of selectors){
+                    const el=document.querySelector(sel);if(!el)continue;
+                    const css=getComputedStyle(el);
+                    if(css.display==='none'||css.visibility==='hidden')continue;
+                    const r=el.getBoundingClientRect();
+                    rects[sel]={top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};
+                  }
+                  const overlap=(a,b)=>{
+                    const x=rects[a],y=rects[b];
+                    return !!(x&&y&&Math.min(x.right,y.right)-Math.max(x.left,y.left)>4&&Math.min(x.bottom,y.bottom)-Math.max(x.top,y.top)>4);
+                  };
+                  const mid=phase==='hero'?'.home-headline':'.lumen-info.info-visible';
+                  const collisions=[['.lumen-header',mid],[mid,'.lumen-footer']]
+                    .filter(([a,b])=>overlap(a,b)).map(z=>z.join(' <> '));
+                  const hidden=phase==='gallery'?getComputedStyle(document.querySelector('.home-headline')).visibility==='hidden':
+                    getComputedStyle(document.querySelector('.lumen-info')).visibility==='hidden';
+                  if(!hidden)collisions.push('hidden view overlapping active section');
+                  const section=document.querySelector('.lumen-site').getBoundingClientRect();
+                  if(rects[mid]&&rects[mid].right>innerWidth+3)collisions.push('active content right cropped');
+                  return {phase,viewport:[innerWidth,innerHeight],heroHeight:section.height,rects,collisions,
+                    scrollWidth:document.documentElement.scrollWidth};
+                },phase);
+                const hero=await layout('hero');
+                console.log('LUMEN HERO LAYOUT',dims.width,JSON.stringify(hero));
+                if(hero.collisions.length)throw Error('Hero overlap '+JSON.stringify(hero.collisions));
+                await p.locator('.lumen-unfold-secondary').click();
+                await p.locator('.lumen-info.info-visible .project-list button').first().waitFor({state:'visible'});
+                const gallery=await layout('gallery');
+                console.log('LUMEN GALLERY LAYOUT',dims.width,JSON.stringify(gallery));
+                if(gallery.collisions.length)throw Error('Gallery overlap '+JSON.stringify(gallery.collisions));
+                await p.screenshot({path:'lumen-gallery-'+dims.width+'.png'});
+                await p.locator('.lumen-info.info-visible .return-link').click();
+                await p.locator('.home-headline.visible').waitFor({state:'visible'});
                 // Actual site navigation and public portfolio content, including resume.
                 await p.locator('.primary-navigation a[href="#work"]').click();
                 await p.locator('#work .pf-project').first().waitFor({state:'visible'});
@@ -88,9 +126,14 @@ jobs:
           name: lumen-fold-desktop-mobile
           path: |
             lumen-1440.png
-            lumen-390.png
+            lumen-1024.png
             lumen-820.png
+            lumen-560.png
+            lumen-430.png
+            lumen-390.png
+            lumen-360.png
             lumen-320.png
+            lumen-gallery-*.png
           if-no-files-found: ignore
   gpu-render-probe:
     runs-on: ubuntu-latest
