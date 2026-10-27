@@ -15,12 +15,24 @@ export async function createLumenScene(canvas, hooks = {}) {
   const noise=i=>{const v=Math.sin(i*127.1+17.4)*43758.5453;return v-Math.floor(v)};
   let scene,cam,renderer,rig,art,showcase,raycaster,plane,gestureLight,glowGroup,glowMaterial;
   let pieces=[],drops=[],frames=[],targetMeshes=[],materials=[],geometries=[],textures=[],waves=[],gapMeshes=[];
-  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,resizeOnWindow=false,onScreen=true,screenObserver;
+  let playing=true,disposed=false,frame=0,last=0,t=0,frameNo=0,qualityLow=false,slowFrames=0,qualityCooldown=0,resizeOnWindow=false,onScreen=true,screenObserver;
   let panel='home',open=0,openVelocity=0,pressure=0,energy=0,observer;
   const hand={x:.7,y:.49,active:false,down:false,speed:0,vx:0,vy:0},soft={x:.7,y:.49,speed:0,vx:0,vy:0};
   const mousePoint=new THREE.Vector3(99,99,0),worldPoint=new THREE.Vector3(),testPoint=new THREE.Vector3();
   const ndc=new THREE.Vector2();
   const len=low?76:116,stepsAcross=low?6:12,total=low?10:14;
+  // Adaptive high-DPI scene: cap total pixels, not every phone at blurry 1x.
+  const targetDpr=(w=Math.max(1,canvas.parentElement?.clientWidth||390),
+                   h=Math.max(1,canvas.parentElement?.clientHeight||844))=>{
+    const native=window.devicePixelRatio||1;
+    const budget=low?1480000:2600000;
+    return Math.max(1,Math.min(native,low?1.85:2,Math.sqrt(budget/Math.max(1,w*h))));
+  };
+  const applyDpr=(w,h)=>{
+    if(!renderer)return;
+    const full=targetDpr(w,h);
+    renderer.setPixelRatio(qualityLow?Math.max(1.13,full*.8):full);
+  };
   const keepG=g=>{geometries.push(g);return g},keepM=m=>{materials.push(m);return m},keepT=q=>{textures.push(q);return q};
   function envMap(){
     const imgs=[];
@@ -270,11 +282,11 @@ export async function createLumenScene(canvas, hooks = {}) {
     }
   }
   function createWorld(){
-    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:!low,powerPreference:low?'low-power':'high-performance'});
+    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:low?'low-power':'high-performance'});
     renderer.setClearColor(0x11191d,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.16;
-    renderer.setPixelRatio(Math.min(devicePixelRatio||1,low?1.0:1.65));
+    applyDpr(Math.max(1,canvas.parentElement.clientWidth),Math.max(1,canvas.parentElement.clientHeight));
     scene=new THREE.Scene();
     cam=new THREE.PerspectiveCamera(43,1,.1,110);cam.position.set(0,0,17.2);cam.lookAt(0,0,0);
     scene.add(new THREE.AmbientLight(0xffffff,.63));
@@ -298,12 +310,13 @@ export async function createLumenScene(canvas, hooks = {}) {
   function resize(){
     if(!renderer||!cam||disposed)return;
     const w=Math.max(1,canvas.parentElement.clientWidth),h=Math.max(1,canvas.parentElement.clientHeight);
+    applyDpr(w,h);
     renderer.setSize(w,h,false);
     cam.aspect=w/h;cam.fov=w<680?55:w<930?47:43;cam.updateProjectionMatrix();
     if(w<680){rig.position.set(0,-.08,0);rig.scale.setScalar(1.05);}
     else if(w<930){rig.position.set(0,0,0);rig.scale.setScalar(1.0);}
     else{rig.position.set(0,0,0);rig.scale.setScalar(1.0);}
-    const coords=w<680?[[-1.26,1.35],[1.26,1.35],[-1.26,-1.35],[1.26,-1.35]]:
+    const coords=w<680?[[-.96,.92],[.96,.92],[-.96,-.92],[.96,-.92]]:
       [[-3.36,.11],[-1.12,-.12],[1.12,.13],[3.36,-.1]];
     frames.forEach((v,i)=>{v.x=coords[i][0];v.y=coords[i][1];});
   }
@@ -316,8 +329,21 @@ export async function createLumenScene(canvas, hooks = {}) {
     frame=0;if(!playing||disposed||document.hidden||!onScreen)return;
     const raw=last?clamp((now-last)/1000,.001,.060):.016,dt=Math.min(raw,.032);
     last=now;t+=dt;frameNo++;
-    if(raw>.044)slowFrames++;else slowFrames=Math.max(0,slowFrames-1);
-    if(slowFrames>18&&!qualityLow){qualityLow=true;renderer.setPixelRatio(Math.min(devicePixelRatio||1,1));renderer.setSize(Math.max(1,canvas.parentElement.clientWidth),Math.max(1,canvas.parentElement.clientHeight),false);}
+    // Sustained low FPS can reduce the pixel budget gently. Single-frame
+    // browser stalls don't force an irreversible blurry 1x canvas.
+    if(raw>.043)slowFrames=Math.min(80,slowFrames+1);
+    else slowFrames=Math.max(0,slowFrames-2);
+    qualityCooldown=Math.max(0,qualityCooldown-dt);
+    if(slowFrames>=24&&!qualityLow&&qualityCooldown===0){
+      qualityLow=true;qualityCooldown=8;
+      const w=Math.max(1,canvas.parentElement.clientWidth),h=Math.max(1,canvas.parentElement.clientHeight);
+      applyDpr(w,h);renderer.setSize(w,h,false);
+    }
+    if(slowFrames<=5&&qualityLow&&qualityCooldown===0){
+      qualityLow=false;qualityCooldown=8;
+      const w=Math.max(1,canvas.parentElement.clientWidth),h=Math.max(1,canvas.parentElement.clientHeight);
+      applyDpr(w,h);renderer.setSize(w,h,false);
+    }
     soft.x=damp(soft.x,hand.active?hand.x:.70,9.0,dt);
     soft.y=damp(soft.y,hand.active?hand.y:.49,9.0,dt);
     soft.speed=damp(soft.speed,hand.active?hand.speed:0,5,dt);
